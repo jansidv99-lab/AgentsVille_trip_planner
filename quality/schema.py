@@ -50,6 +50,7 @@ class EvalCase(BaseModel):
 # Phase 5 – B0 Step 1: the outcome of one grader on one LLM run
 class GraderResult(BaseModel):
     grader: str
+    slice: Optional[str] = None  # Phase 5 – B1 Step 1: slice that introduced the grader (B0, B1, …)
     severity: Severity
     passed: Optional[bool] = None
     score: Optional[float] = Field(default=None, ge=0, le=1)
