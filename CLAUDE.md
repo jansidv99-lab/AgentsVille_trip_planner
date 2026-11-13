@@ -128,3 +128,19 @@ the UI should have following components -
 ## Deployment and CI/CD
 
 Deploy the app to Google Cloud Run in the project given by `GCP_PROJECT_ID`. Region: TBD (record it here once chosen). Use GitHub Actions as the CI/CD pipeline that builds and deploys to Cloud Run.
+
+## Monitoring & alerting (Layer C2/C3)
+
+- Config as code in `deploy/monitoring/`: 10 log-based metrics (`metrics/*.yaml`, all scoped to this service's `jsonPayload.app="agentsville"` events), dashboard **"AgentsVille – AI quality & ops"** (`dashboard.json`), 8 alert policies (`alerts/*.yaml`, PromQL, each with a runbook in `documentation`). Apply with `ALERT_EMAIL=<address> bash deploy/monitoring-setup.sh` (idempotent; channel/dashboard/policies go through the REST client `deploy/monitoring/monitoring_api.py` because `gcloud alpha/beta` needs admin rights on this Windows machine). The alert email is never stored in the repo.
+- `tests/test_monitoring_config.py` is a contract test: metric filters may only use fields `observability/events.py` emits, and alerts/dashboard may only reference defined metrics. Renaming an event field must update the metrics too.
+- Alert runbook (details in each policy's documentation):
+  - **A1 hallucination** (any, 1 h): inspect the run in BigQuery (raw reply logged); a fabricated fact is never acceptable.
+  - **A2 task-success drift** (> 60% failures / 6 h, ≥ 5 runs; v1 baseline 42%): check prompt/model/provider change; run the smoke gate.
+  - **A3 weather spike** (> 50% / 6 h, ≥ 5 runs; v1 ≈ 35%): known v1 weak spot → guardrail backlog item.
+  - **A4 LLM errors** (≥ 3 / 10 min): secret, Vocareum quota, network.
+  - **A5 slow** (p95 > 60 s / 30 min): provider status, longer trips.
+  - **A6 unhappy users** (👎 > 50% / 24 h, ≥ 5 ratings): read comments, `promote.py mine`.
+  - **A7 cost guard** (> 60 runs/h): possible abuse of the public app.
+  - **A9 5xx**: revision logs; roll back traffic to the previous revision.
+- Synthetic alert test: `python deploy/monitoring/fire_synthetic_event.py <project>` writes one labeled fake hallucination (`trace_id` `synthetic-…`, `prompt_version` `synthetic`); BigQuery views exclude `synthetic-` traces.
+- Not built (decision): uptime check, weekly drift workflow, billing budget alert.
