@@ -75,13 +75,14 @@ GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`)
   - **Pricing:** an activity's `price` is a group price; `total_cost` = sum of activity prices.
   - **Weather:** whole-day policy. No `outdoor` activity on any rainy or thunderstorm day; `flex` (indoor rain backup) is allowed. Settings come from the approved `quality/ground_truth/activity_labels.json`.
   - Prompt changes (B4) must state these rules explicitly.
+- LLM judge (`quality/graders/judge.py`, B3) is **offline only** (`runner --judge`, cached by planner reply + judge model + judge prompt hash; `JUDGE_MODEL` env, default `gpt-4.1-mini`). Judge metrics are **report-only** until calibrated: a judge metric may gate only with ≥ 80% agreement with human labels (`evals/harness/calibration.py`, labels in `evals/calibration/`). Calibration labeling must be blind (never show judge verdicts to the labeler) and must come from the user, never be generated.
 - Every new grader needs a mutation test that breaks the known-good `sample_plan` in one way and asserts **only** that grader fails (see `tests/test_grounding_graders.py`).
 
 ## Code layout
 
 - `models.py`: all Pydantic models (`VacationInfo` input, `TravelPlan` output, `PromptTrace`).
 - `llm.py`: OpenAI client (wrapped in `InstrumentedClient` for latency/tokens/cost) and default model from `.env`.
-- `quality/`: shared by app and evals: `schema.py` (`EvalCase`, `EvalRecord`, the one record shape for offline and prod), `graders/` (`base.py` GradingInput/decorator, `parse.py` B0, `grounding.py` B1 hallucination, `constraints.py` B2 constraints/task success), `labels.py` (approved activity settings), `pricing.py`.
+- `quality/`: shared by app and evals: `schema.py` (`EvalCase`, `EvalRecord`, the one record shape for offline and prod), `graders/` (`base.py` GradingInput/decorator, `parse.py` B0, `grounding.py` B1 hallucination, `constraints.py` B2 constraints/task success, `relevancy.py` + `reasoning.py` B3 deterministic, `judge.py` B3 offline judge), `labels.py` (approved activity settings), `pricing.py`.
 - `evals/`: golden datasets and the harness (`dataset.py`, `cache.py` record/replay, `runner.py`, `report.py`).
 - `agents/itinerary.py`: Part A prompt (built from the trip's dates using the mocked APIs) and `ItineraryAgent`, which records a `PromptTrace` on every run.
 - `project_lib.py`: course-provided helpers, `Interest` enum, `ChatAgent`, and the mocked weather and activities data (only 2025-06-10 … 2025-06-15 in AgentsVille).

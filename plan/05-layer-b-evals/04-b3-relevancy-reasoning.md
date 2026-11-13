@@ -1,6 +1,6 @@
 # Layer B – B3 Relevancy & reasoning verification
 
-Status: **Approved**: ~22 judge calls OK; labels given in chat
+Status: **Done except Step 5 labels** (deferred to the backlog by the user). Judge metrics are report-only until calibrated.
 
 Parent plan: `00-layer-b-overview.md` · Builds on: B0, B1, B2 (merged) · Background: `graders-explained.md`
 
@@ -127,6 +127,18 @@ Branch `feature/layer-b-b3-relevancy`. Phase comments: `# Phase 5 – B3 Step N:
 - **Calibration and inter-rater agreement:** exact, ±1, confusion counts. A judge earns trust; it
   isn't assumed.
 - **Faithfulness vs plausibility:** a well-written ANALYSIS that the final plan doesn't follow.
+
+## 9b. Results (cached full run, 23 judged plans)
+- **Deterministic:** interest coverage 98%; reason grounding 74% (10 keyword flags: 6 × G5 "theatre",
+  "Hiro's art" ×2 for activities without art, plus 2 contextual false alarms); reasoning covers choices
+  91% (G6 plans leave 2 picks unexplained).
+- **Judge** (`gpt-4.1-mini`, 20 live calls, $0.030): answer relevancy 0.92, coherence 1.00, reasons
+  honest 91%, reasoning faithful 100%. **Signs of leniency (same-family bias):**
+  - coherence is 5/5 on every plan
+  - G6's "Hiro's art" claims were judged honest
+  - G5#2 was judged honest, while G5#0 and G5#1, with the same pattern, were not
+  - plans whose ANALYSIS and plan agree on a wrong total were judged faithful
+- **Calibration:** pending your labels (backlog). Until then the judge is **report-only**.
 
 ## 10. Done when
 - Each deterministic grader has a mutation test, and Layer A is green in CI.
