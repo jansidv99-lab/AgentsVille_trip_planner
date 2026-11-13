@@ -19,3 +19,6 @@ Thumbs.db
 evals/cache/
 evals/results/
 *.stackdump
+
+# Phase 5 – B5: production candidates stay local until reviewed (approved cases are promoted into a dataset version)
+evals/datasets/*/candidates.jsonl
