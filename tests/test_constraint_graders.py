@@ -107,3 +107,16 @@ def test_unparsed_reply_fails_task_but_constraints_not_applicable(vacation_info)
     results = grade(vacation_info, None)
     assert all(results[g].passed is None for g in CONSTRAINT_GRADERS)
     assert not task_succeeded(list(results.values()))
+
+
+# Phase 5 – B4 fix: a wrong stated total must not hide a real overspend (v3 smoke, G1: stated 130, spent 148)
+def test_budget_uses_real_spend_not_stated_total(vacation_info, sample_plan):
+    plan = sample_plan.model_copy(deep=True)
+    add_activity(plan, 2, "event-2025-06-12-1")   # real spend 108 + 15 = 123
+    add_activity(plan, 1, "event-2025-06-11-3")   # + 25 = 148
+    plan.total_cost = 130                          # the model "forgets" to update the total
+    results = grade(vacation_info, plan)
+    assert results["budget_within_limit"].passed is False
+    assert results["budget_within_limit"].details == {"real_spend": 148, "stated_total": 130, "max_cost": 130,
+                                                     "over_by": 18}
+    assert results["cost_arithmetic"].passed is False
