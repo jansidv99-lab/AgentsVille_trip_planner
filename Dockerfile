@@ -21,6 +21,14 @@ RUN pip install -r requirements.txt
 COPY app.py models.py llm.py project_lib.py ./
 COPY agents/ agents/
 COPY ui/ ui/
+# Fix: quality/ (graders, schema, pricing, labels – imported by llm.py since Layer B B0) and prompts/
+# (versioned prompt templates since B4) were missing, so the app failed to import in production.
+COPY quality/ quality/
+COPY prompts/ prompts/
+
+# Fail the BUILD if the app can't import or can't load its prompt templates – the health endpoint alone
+# can't catch this (Streamlit only executes app.py when a browser session connects).
+RUN OPENAI_API_KEY=build-check python -c "import app; from agents.prompts import available_prompt_versions, load_prompt_template; [load_prompt_template(v) for v in available_prompt_versions()]; print('import check OK:', available_prompt_versions())"
 
 # Run as an unprivileged user instead of root.
 RUN useradd --create-home --uid 1000 appuser

@@ -10,6 +10,8 @@
 !project_lib.py
 !agents/
 !ui/
+!quality/
+!prompts/
 
 # Never ship caches, even inside allowed folders.
 **/__pycache__
