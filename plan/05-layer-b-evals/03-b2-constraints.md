@@ -1,6 +1,6 @@
 # Layer B – B2 Constraint compliance & goal completion
 
-Status: **Approved**: Q1 = group price; activity labels approved as listed in §3
+Status: **Done**: Q1 = group price; Q2 = whole-day weather policy; labels approved (§3)
 
 Parent plan: `00-layer-b-overview.md` · Builds on: B0 (merged), B1 (PR #6) · Background: `graders-explained.md`
 
@@ -122,6 +122,23 @@ arithmetic in 2 of 22, so task success is about **55–60%**.
 
 Either way, B4's prompt v2 should **state the rule explicitly**, since the ambiguity is what causes
 the inconsistency.
+
+**Q2: whole-day or time-aware weather safety?** **Decided: (a) whole-day.**
+
+- **What we found:** all 8 weather violations in the full run are the same 08:00–10:00 hike
+  (`event-2025-06-12-0`) on 06-12, whose forecast says the thunderstorm arrives "during the
+  afternoon". The model's ANALYSIS reasoned that a morning outdoor activity is fine ("Morning
+  activities may be possible…").
+- **Why it's defensible:** under the current prompt ("avoid … **during** rain or thunderstorms") that
+  reasoning holds up.
+- **The decision:** the project adopts the **conservative whole-day policy**: no `outdoor` activity on
+  any day whose forecast condition is rainy or thunderstorm. `flex` (indoor rain backup) is allowed.
+- **Consequence for B4 (hard requirement):** prompt v2 must **state this policy explicitly**.
+  Otherwise the grader penalizes the model for following the spec as written. The replay re-grade
+  (task success 58%, 8 weather violations) is the v1 baseline that v2 must beat.
+- **Lesson:** graders can be wrong too, or rather can encode a *different* policy than the prompt.
+  Before trusting a failure rate, check failures against the model's reasoning, and make the spec
+  and the grader agree.
 
 ## 8. Implementation steps
 
