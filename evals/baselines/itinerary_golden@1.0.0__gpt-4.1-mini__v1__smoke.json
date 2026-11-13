@@ -1,0 +1,74 @@
+{
+  "dataset": "itinerary_golden@1.0.0",
+  "model": "gpt-4.1-mini",
+  "prompt_version": "v1",
+  "mode": "smoke",
+  "repeats": 1,
+  "git_sha": "f6ba842",
+  "created": "2026-11-13T12:31:34+00:00",
+  "metrics": {
+    "task_success_rate": 0.667,
+    "hallucination_rate": 0.0,
+    "pass_rates": {
+      "parse": 1.0,
+      "activity_exists": 1.0,
+      "activity_details_match": 1.0,
+      "activity_on_its_date": 1.0,
+      "weather_matches_forecast": 1.0,
+      "plan_matches_request": 1.0,
+      "description_verbatim": 1.0,
+      "uncoverable_interest_mentions": null,
+      "budget_within_limit": 1.0,
+      "cost_arithmetic": 1.0,
+      "day_coverage": 1.0,
+      "no_time_overlaps": 1.0,
+      "weather_safety": 0.667,
+      "plan_shape": null,
+      "interest_coverage": 1.0,
+      "must_include": null,
+      "reason_grounding": 0.667,
+      "analysis_structure": 1.0,
+      "reasoning_covers_choices": 1.0
+    },
+    "consistency": {
+      "k": 1,
+      "pass_k_rate": 0.667,
+      "pass_at_k_rate": 0.667,
+      "flaky_cases": []
+    },
+    "plan_shape": {
+      "G1": {
+        "activities_per_day": 2.33,
+        "budget_utilization": 0.985
+      },
+      "G2": {
+        "activities_per_day": 1.0,
+        "budget_utilization": 0.45
+      },
+      "G5": {
+        "activities_per_day": 1.0,
+        "budget_utilization": 0.55
+      }
+    }
+  },
+  "per_case": {
+    "G1": {
+      "task_success_rate": 1.0,
+      "pass_k": true,
+      "hard_failures": []
+    },
+    "G2": {
+      "task_success_rate": 0.0,
+      "pass_k": false,
+      "hard_failures": [
+        "weather_safety"
+      ]
+    },
+    "G5": {
+      "task_success_rate": 1.0,
+      "pass_k": true,
+      "hard_failures": []
+    }
+  },
+  "judge": null
+}

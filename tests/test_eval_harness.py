@@ -104,6 +104,27 @@ def test_report_task_success_section(run, llm_reply):
     assert "| G1 | 2.0 | 83% |" in report  # 108 / 130
 
 
+# Phase 5 – B4 Step 2: accept a baseline, then a worse run is flagged as a regression against it
+def test_accept_baseline_then_detect_regression(run, llm_reply, tmp_path, monkeypatch):
+    import evals.harness.baseline as baseline_mod
+    import evals.harness.runner as runner_mod
+    monkeypatch.setattr(baseline_mod, "BASELINES_DIR", tmp_path / "baselines")
+    monkeypatch.setattr(runner_mod, "baseline_path",
+                        lambda *a, **k: baseline_mod.baseline_path(*a, directory=tmp_path / "baselines"))
+    monkeypatch.setattr(runner_mod, "write_baseline", lambda snap: baseline_mod.write_baseline(snap, tmp_path / "baselines"))
+
+    good = run(llm_reply)
+    assert good.comparison is None  # no baseline yet
+    baseline_mod.write_baseline(good.snapshot, tmp_path / "baselines")  # = accepting the good run
+
+    bad = run("sorry, no JSON", cache_mode=CacheMode.REFRESH)
+    assert bad.comparison["passed"] is False
+    assert "task_success_rate" in bad.comparison["regressions"]
+    assert "G1" in bad.comparison["new_case_failures"]
+    report = (bad.out_dir / "report.md").read_text(encoding="utf-8")
+    assert "## Comparison vs baseline" in report and "REGRESSION" in report
+
+
 # Phase 5 – B0 Step 4: an unparseable reply is graded as a parse failure (and still cached)
 def test_bad_reply_fails_parse_grader(run):
     result = run("sorry, no JSON")
