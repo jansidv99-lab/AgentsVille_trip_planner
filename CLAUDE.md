@@ -27,7 +27,7 @@ It is built in two parts:
    plan/03-ui/              # Streamlit app
    plan/04-deploy/          # Cloud Run deployment
    ```
-   Add new stage folders (e.g. `05-testing/`) as needed, keeping the numeric prefix.
+   Add new stage folders (e.g. `05-testing/`) when ever as needed do not mixup, keeping the numeric prefix.
 2. **Review:** ask the user to review each plan doc before implementing it.
 3. **Permission:** always ask for permission before making any change to code.
 4. **Phased implementation:** start with the master plan, then plan the code phase by phase and step by step, stating each step's purpose and dependencies.
