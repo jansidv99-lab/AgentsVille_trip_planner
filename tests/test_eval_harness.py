@@ -89,6 +89,21 @@ def test_report_hallucination_section(run, llm_reply):
     assert "Failing runs:** G5#0" in report
 
 
+# Phase 5 – B2 Step 4: task success needs parse + grounding + constraints; G5 fails (dates, coverage)
+def test_report_task_success_section(run, llm_reply):
+    result = run(llm_reply)
+    c = result.summary["constraints"]
+
+    assert c["task_success_rate"] == 0.5  # G1 succeeds; G5 (06-10..11 trip) gets a 06-10..12 plan
+    assert c["failed_runs"] == ["G5#0"]
+    assert c["plan_shape"]["G1"]["activities_per_day"] == 2.0
+
+    report = (result.out_dir / "report.md").read_text(encoding="utf-8")
+    assert "**Task success rate** (target 100%) | **50%**" in report
+    assert "## Constraints & task success (B2)" in report
+    assert "| G1 | 2.0 | 83% |" in report  # 108 / 130
+
+
 # Phase 5 – B0 Step 4: an unparseable reply is graded as a parse failure (and still cached)
 def test_bad_reply_fails_parse_grader(run):
     result = run("sorry, no JSON")
