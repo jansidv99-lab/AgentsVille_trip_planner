@@ -1,0 +1,35 @@
+displayName: AgentsVille A1 – Hallucination detected
+severity: CRITICAL
+combiner: OR
+conditions:
+- displayName: AgentsVille A1 – Hallucination detected – condition
+  conditionPrometheusQueryLanguage:
+    query: sum(increase(logging_googleapis_com:user_agentsville_hallucinations{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[1h])) > 0
+    duration: 0s
+    evaluationInterval: 60s
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  content: '## AgentsVille A1 – Hallucination detected
+
+
+    **What it means:** A live itinerary contained a fabricated or altered fact (a B1 grounding grader failed). The policy is **0 hallucinations**.
+
+
+    **First steps:**
+
+    1. Find the run in BigQuery (`hallucination = true`); the raw reply is logged for hard failures.
+
+    2. Check `graders[].details_json` for which field was altered.
+
+    3. If it''s a real model regression: keep or roll back `PROMPT_VERSION`, then add the case to the golden set (`promote.py mine`).
+
+
+    Dashboard: *AgentsVille – AI quality & ops* · BigQuery: `agentsville_observability.runs_with_feedback` / `daily_quality`
+
+
+    _Defined in `deploy/monitoring/alerts/a1-hallucination.yaml` (Phase 7 – C3)._'
+  mimeType: text/markdown
+userLabels:
+  app: agentsville
+  layer: c3

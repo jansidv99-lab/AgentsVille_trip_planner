@@ -1,0 +1,34 @@
+displayName: AgentsVille A3 – Weather-safety spike
+severity: WARNING
+combiner: OR
+conditions:
+- displayName: AgentsVille A3 – Weather-safety spike – condition
+  conditionPrometheusQueryLanguage:
+    query: (sum(increase(logging_googleapis_com:user_agentsville_weather_violations{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[6h])) / sum(increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[6h])))
+      > 0.5 and sum(increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[6h])) >= 5
+    duration: 0s
+    evaluationInterval: 60s
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  content: '## AgentsVille A3 – Weather-safety spike
+
+
+    **What it means:** Over half of live runs scheduled an outdoor activity on a rainy/thunderstorm day (at least 5 runs). The v1 rate is ≈ 35%.
+
+
+    **First steps:**
+
+    1. Inspect failing runs in BigQuery (`''weather_safety'' IN UNNEST(hard_failed)`).
+
+    2. Known v1 weak spot: see the validate-and-repair guardrail in the backlog.
+
+
+    Dashboard: *AgentsVille – AI quality & ops* · BigQuery: `agentsville_observability.runs_with_feedback` / `daily_quality`
+
+
+    _Defined in `deploy/monitoring/alerts/a3-weather-spike.yaml` (Phase 7 – C3)._'
+  mimeType: text/markdown
+userLabels:
+  app: agentsville
+  layer: c3

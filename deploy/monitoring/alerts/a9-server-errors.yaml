@@ -1,0 +1,33 @@
+displayName: AgentsVille A9 – Server errors (5xx)
+severity: CRITICAL
+combiner: OR
+conditions:
+- displayName: AgentsVille A9 – Server errors (5xx) – condition
+  conditionPrometheusQueryLanguage:
+    query: sum(increase(run_googleapis_com:request_count{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner",response_code_class="5xx"}[10m])) > 0
+    duration: 0s
+    evaluationInterval: 60s
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  content: '## AgentsVille A9 – Server errors (5xx)
+
+
+    **What it means:** Cloud Run returned 5xx responses in the last 10 min.
+
+
+    **First steps:**
+
+    1. Check the Cloud Run revision logs for tracebacks.
+
+    2. If a new deploy caused it: roll back to the previous revision (`gcloud run services update-traffic … --to-revisions …=100`).
+
+
+    Dashboard: *AgentsVille – AI quality & ops* · BigQuery: `agentsville_observability.runs_with_feedback` / `daily_quality`
+
+
+    _Defined in `deploy/monitoring/alerts/a9-server-errors.yaml` (Phase 7 – C3)._'
+  mimeType: text/markdown
+userLabels:
+  app: agentsville
+  layer: c3
