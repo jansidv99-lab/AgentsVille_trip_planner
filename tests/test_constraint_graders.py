@@ -18,7 +18,8 @@ def grade(vacation_info, plan, expectations=DEFAULT_EXPECTATIONS):
 
 
 def failing(results) -> set[str]:
-    return {name for name, r in results.items() if r.passed is False}
+    # Phase 5 – B3 Step 1: B3 (soft relevancy/reasoning) graders are tested in test_relevancy_graders.py
+    return {name for name, r in results.items() if r.passed is False and r.slice != "B3"}
 
 
 def add_activity(plan, day_index, activity_id):

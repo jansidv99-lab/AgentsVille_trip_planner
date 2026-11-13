@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Optional
 
 from quality.graders import task_succeeded
+
+# Phase 5 – B3 Step 6: judge metrics are report-only until human labels exist (calibration trust rule)
+HUMAN_LABELS_PATH = Path(__file__).resolve().parent.parent / "calibration" / "b3_human_labels.v1.jsonl"
 from quality.graders.grounding import HALLUCINATION_GRADERS
 from quality.schema import EvalRecord
 
@@ -55,6 +58,37 @@ def percentile(values: list[float], pct: float) -> Optional[float]:
 
 def _mean(values: list[float]) -> Optional[float]:
     return round(statistics.fmean(values), 1) if values else None
+
+
+# Phase 5 – B3 Step 6: mean score of one grader over the records where it applied
+def mean_score(records: list[EvalRecord], grader: str) -> Optional[float]:
+    scores = [r.result(grader).score for r in records if r.result(grader) and r.result(grader).score is not None]
+    return round(statistics.fmean(scores), 3) if scores else None
+
+
+# Phase 5 – B3 Step 6: relevancy & reasoning – deterministic signals + (optional) judge metrics
+def relevancy_summary(records: list[EvalRecord]) -> dict:
+    flagged, unexplained = [], []
+    for r in records:
+        run_id = f"{r.case_id}#{r.repeat}"
+        rg, rc = r.result("reason_grounding"), r.result("reasoning_covers_choices")
+        flagged += [{"run": run_id, **f} for f in ((rg.details.get("flagged") or []) if rg else [])]
+        if rc is not None and rc.details.get("unexplained"):
+            unexplained.append({"run": run_id, "ids": rc.details["unexplained"]})
+    judged = any(r.result("judge_relevancy") for r in records)
+    return {
+        "interest_coverage_mean": mean_score(records, "interest_coverage"),
+        "reason_flags": flagged,
+        "unexplained_choices": unexplained,
+        "judge": {
+            "answer_relevancy": mean_score(records, "judge_relevancy"),
+            "coherence": mean_score(records, "judge_coherence"),
+            "reasons_honest_rate": pass_rate(records, "judge_reasons_honest"),
+            "reasoning_faithful_rate": pass_rate(records, "judge_reasoning_faithful"),
+            "dishonest_runs": [f"{r.case_id}#{r.repeat}" for r in records
+                               if r.result("judge_reasons_honest") and r.result("judge_reasons_honest").passed is False],
+        } if judged else None,
+    }
 
 
 # Phase 5 – B0 Step 4: pass rate of one grader over a set of records
@@ -130,6 +164,7 @@ def build_summary(records: list[EvalRecord], meta: dict) -> dict:
     return {"meta": meta, "graders": graders, "slices": slices, "overall": stats(records),
             "hallucination": hallucination_summary(records),
             "constraints": constraint_summary(records),
+            "relevancy": relevancy_summary(records),
             "cases": {cid: stats(rs) for cid, rs in sorted(by_case.items())}}
 
 
@@ -144,6 +179,9 @@ def render_markdown(summary: dict) -> str:
     m, o, graders = summary["meta"], summary["overall"], summary["graders"]
     slices, h = summary.get("slices", {}), summary.get("hallucination") or {}
     c = summary.get("constraints") or {}
+    rv = summary.get("relevancy") or {}
+    jm = rv.get("judge") or {}
+    judge_meta = m.get("judge") or {}
 
     def label(g: str) -> str:
         return f"{slices.get(g) or '?'} · {g}"
@@ -207,7 +245,32 @@ def render_markdown(summary: dict) -> str:
         *[f"| {cid} | {s['activities_per_day']} | {s['budget_utilization']:.0%} |"
           for cid, s in (c.get("plan_shape") or {}).items()],
         "",
-        "_Relevancy & reasoning (B3) graders are added in a later slice._",
+        "## Relevancy & reasoning (B3)",
+        "",
+        f"- **Interest coverage** (mean, vs coverable interests): {_fmt(rv.get('interest_coverage_mean'), pct=True)}",
+        f"- **Reasons naming an interest the activity lacks** (keyword heuristic; may include contextual "
+        f"false alarms): {len(rv.get('reason_flags') or [])}",
+        *[f"  - {f['run']} `{f['id']}` claims {', '.join(f['claims'])}: \"{f['reason']}\""
+          for f in (rv.get("reason_flags") or [])[:12]],
+        f"- **Unexplained choices** (final activities not discussed in the ANALYSIS): "
+        + (", ".join(f"{u['run']} ({len(u['ids'])})" for u in (rv.get("unexplained_choices") or [])) or "none"),
+        "",
+        *([
+            f"**LLM judge** ({judge_meta.get('model')}, {judge_meta.get('live_calls')} live / "
+            f"{judge_meta.get('cached_calls')} cached calls, ≈ ${judge_meta.get('cost_usd')}) – "
+            + ("_Calibration: human labels present – see the agreement report; trust only metrics with ≥ 80% agreement._"
+             if HUMAN_LABELS_PATH.exists() else
+             "_⚠️ Calibration PENDING (no human labels yet): these judge metrics are **report-only** and must not "
+             "gate anything._"),
+            "",
+            "| Judge metric | Value |",
+            "|---|---|",
+            f"| Answer relevancy (0–1) | {_fmt(jm.get('answer_relevancy'))} |",
+            f"| Coherence (0–1) | {_fmt(jm.get('coherence'))} |",
+            f"| Reasons honest rate | {_fmt(jm.get('reasons_honest_rate'), pct=True)} |",
+            f"| Reasoning faithful rate | {_fmt(jm.get('reasoning_faithful_rate'), pct=True)} |",
+            f"| Judged dishonest | {', '.join(jm.get('dishonest_runs') or []) or 'none'} |",
+        ] if jm else ["_LLM judge not run (use `--judge`)._"]),
         "",
     ]
     return "\n".join(lines)

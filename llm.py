@@ -39,12 +39,22 @@ class InstrumentedClient:
         self._client = client
         self.last_call: Optional[CallMetrics] = None
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        # Phase 5 – B3 Step 3: structured-output calls (used by the LLM judge) are measured too
+        self.beta = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(parse=self._parse)))
 
     # Phase 5 – B0 Step 3: same signature as client.chat.completions.create; returns the response unchanged
     def _create(self, **kwargs):
+        return self._measure(self._client.chat.completions.create, kwargs)
+
+    # Phase 5 – B3 Step 3: same signature as client.beta.chat.completions.parse
+    def _parse(self, **kwargs):
+        return self._measure(self._client.beta.chat.completions.parse, kwargs)
+
+    # Phase 5 – B3 Step 3: shared timing + usage capture for both call types
+    def _measure(self, call, kwargs):
         self.last_call = None  # never report a previous call's metrics if this one fails
         start = time.perf_counter()
-        response = self._client.chat.completions.create(**kwargs)
+        response = call(**kwargs)
         latency_ms = round((time.perf_counter() - start) * 1000, 1)
         usage = getattr(response, "usage", None)
         prompt_tokens = getattr(usage, "prompt_tokens", None)

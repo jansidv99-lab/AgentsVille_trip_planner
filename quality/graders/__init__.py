@@ -23,6 +23,8 @@ from quality.graders.grounding import (
     grade_weather_matches_forecast,
 )
 from quality.graders.parse import grade_parse
+from quality.graders.reasoning import grade_analysis_structure, grade_reasoning_covers_choices
+from quality.graders.relevancy import grade_interest_coverage, grade_must_include, grade_reason_grounding
 from quality.schema import GraderResult
 
 GRADERS: list[Grader] = [
@@ -42,6 +44,12 @@ GRADERS: list[Grader] = [
     grade_no_time_overlaps,
     grade_weather_safety,
     grade_plan_shape,
+    # B3 – relevancy & reasoning (deterministic, soft; the LLM judge is offline-only, see judge.py)
+    grade_interest_coverage,
+    grade_must_include,
+    grade_reason_grounding,
+    grade_analysis_structure,
+    grade_reasoning_covers_choices,
 ]
 
 # Phase 5 – B2 Step 3: task success (goal completion) = parses, no hallucination, all hard constraints met
