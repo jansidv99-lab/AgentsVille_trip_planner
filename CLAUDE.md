@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project goal
+
+An AI-powered trip planner for the fictional destination AgentsVille. The system must:
+1. **Understand and interpret** the user's preferences and constraints.
+2. **Plan comprehensively:** produce a coherent, day-by-day itinerary tailored to the travelers, not just a list of activities.
+3. **Evaluate and enhance:** use tools to evaluate the plan, fetch new information, and refine the schedule.
+
+It is built in two parts:
+- **Part A – The Expert Planner (initial itinerary):** from user preferences (destination, duration, interests, budget), prompt the LLM to act as an expert travel planner. The output must be structured JSON that validates against a predefined Pydantic itinerary model. This part relies on prompt design that elicits complex structured output and guides the LLM through planning.
+- **Part B – The Resourceful Assistant (ReAct agent):** an "AI Travel Assistant" handles follow-up questions, change requests, and any extra requirements that must be met before the itinerary is final. It runs a ReAct loop:
+  - **THINK:** reason about the request in the context of the current itinerary.
+  - **ACT:** if a tool can help (e.g. the simulated activities API), emit a structured tool request.
+  - **OBSERVATION:** our Python code simulates the tool and feeds the result back.
+  - The agent continues reasoning or returns a final answer.
+
 ## Workflow rules
 
 1. **Plan first:** before every step, write a detailed plan doc under `plan/` that explains each topic clearly. Keep plans organized by stage:
@@ -26,13 +41,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-The project is not yet a git repository. Phase 0 of the master plan should run `git init` (default branch `main`) and add a `.gitignore` that excludes `.env`. The commit, PR, and branch rules above apply from then on.
+Git repo on `main`, tracking `origin` on GitHub. There is no application code yet: `plan/` is empty and the master plan (`plan/00-master-plan.md`) hasn't been written. `.gitignore` excludes `.env`, virtualenvs, and Python caches. Add a "Commands" section here (install, run the app, run tests, run a single test) once Phase 1 chooses the tooling.
 
 ## Environment
 
 Copy `.env.example` to `.env` and fill it in (`.env` holds secrets and must stay gitignored). It defines:
-- `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `MODEL` — LLM access via an OpenAI-compatible endpoint.
-- `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER` — deployment target.
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `MODEL`: LLM access via an OpenAI-compatible endpoint. `OPENAI_BASE_URL` points at a non-default endpoint, so create the client with `OpenAI(base_url=os.getenv("OPENAI_BASE_URL"))` rather than relying on the SDK default.
+- `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`: deployment target.
 
 ## LLM models
 
@@ -44,10 +59,20 @@ Read the model name from the `MODEL` env var; never hardcode it. If `MODEL` is u
 | `gpt-4.1-mini` | **Default.** Fast and affordable; good balance of speed and cost |
 | `gpt-4.1-nano` | Fastest and cheapest; lightweight, high-frequency tasks |
 
+## Data models
+
+Use Pydantic for all data models (traveler preferences, the itinerary, tool requests/responses).
+
 ## UI
 
 Use Streamlit for the UI.
+the UI should have following components - 
+  window where traveler enter the name 
+  select the city name form the list for now only one city - "AgentsVille"
+  select multiple intrests provided in the class - Interest
+  select the open ai models to use for the LLM generation
+  button to generate the report   
 
-## Deployment
+## Deployment and CI/CD
 
-Deploy the app to Google Cloud Run in the project given by `GCP_PROJECT_ID`. Region: TBD (record it here once chosen).
+Deploy the app to Google Cloud Run in the project given by `GCP_PROJECT_ID`. Region: TBD (record it here once chosen). Use GitHub Actions as the CI/CD pipeline that builds and deploys to Cloud Run.
