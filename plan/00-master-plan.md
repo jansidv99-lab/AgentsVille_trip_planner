@@ -1,6 +1,6 @@
 # Master Plan – AgentsVille Trip Planner + AI Quality Assurance Platform
 
-Status: **Draft – awaiting review**
+Status: **Approved** – Phases 3, 4, 6 done; Layer B (Phase 5) in progress
 
 ## 1. Goal
 
@@ -25,14 +25,14 @@ Each phase below gets its own detailed plan in its folder, reviewed before imple
 
 | # | Phase | Status | Plan folder | Depends on |
 |---|---|---|---|---|
-| 0 | Repo sync + master plan | in review | `plan/00-master-plan.md` | — |
+| 0 | Repo sync + master plan | ✅ done | `plan/00-master-plan.md` | — |
 | 1 | Setup (env, deps, repo) | ✅ done | — | — |
 | 2 | Part A itinerary agent | ✅ done (prompt tuning driven by Phase 5) | — | 1 |
 | 3 | Streamlit UI + prompt inspector | ✅ done | `plan/03-ui/` | 2 |
-| 4 | **Layer A** – deterministic tests (minimal) | next (plan written) | `plan/04-layer-a-testing/` | 2, 3 |
-| 6 | Deploy: Cloud Run + GitHub Actions CI/CD | after 4 (plan written) | `plan/06-deploy/` | 4 |
-| 5 | **Layer B** – probabilistic evals | | `plan/05-layer-b-evals/` | 4 |
-| 7 | **Layer C** – metrics & drift (GCP native) | | `plan/07-layer-c-monitoring/` | 5, 6 |
+| 4 | **Layer A** – deterministic tests (minimal) | ✅ done (26 tests) | `plan/04-layer-a-testing/` | 2, 3 |
+| 6 | Deploy: Cloud Run + GitHub Actions CI/CD | ✅ done (live) | `plan/06-deploy/` | 4 |
+| 5 | **Layer B** – probabilistic evals (slices B0–B5) | in progress | `plan/05-layer-b-evals/` | 4 |
+| 7 | **Layer C** – metrics & drift (GCP native, C1–C3) | C1 before B5 | `plan/07-layer-c-monitoring/` | 5, 6 |
 
 Execution order: **4 → 6 → 5 → 7**. The phase numbers are IDs, not the run order.
 
@@ -45,6 +45,12 @@ Execution order: **4 → 6 → 5 → 7**. The phase numbers are IDs, not the run
 
 ```
 Phase 4 Layer A ──▶ Phase 6 CI/CD + Deploy ──▶ Phase 5 Layer B ──▶ Phase 7 Layer C
+```
+
+Layers B and C interleave at one point: Layer B's last slice (B5, the production feedback loop)
+needs Layer C's first slice (C1, structured logging + BigQuery sink):
+```
+B0 → B1 → B2 → B3 → B4 → C1 → B5 → C2 → C3
 ```
 
 ## 3. Phase 4 – Layer A: deterministic testing (minimal)
@@ -67,42 +73,29 @@ Most of these checks were already run by hand while building Phase 3. This phase
 
 ## 4. Phase 5 – Layer B: probabilistic evals (focus)
 
-**Purpose:** measure whether itineraries are *good*, not just whether the code runs. The same prompt
-gives different answers on different runs, so quality is a **pass rate over repeated runs** on a
-fixed dataset, not a single pass/fail.
+**Detailed plan: `plan/05-layer-b-evals/00-layer-b-overview.md`.**
 
-- **Golden dataset** (`evals/cases/*.json`, about 10 cases):
-  - single and multiple travelers
-  - tight vs loose budgets
-  - storm and rain days (2025-06-12 to 06-14)
-  - trips of 1 to 6 days
-  - interests with few matching activities
-- **Graders that need no LLM.** They compare against the mock data in `project_lib.py`:
+Layer B is delivered as **end-to-end scenario slices**. Each slice answers one quality question,
+from golden data → graders → harness → thresholds → CI → production signal:
 
-  | Grader | Checks |
-  |---|---|
-  | Schema validity | The reply parses into `TravelPlan` (parse rate) |
-  | No hallucination | Every `activity_id` exists, and its details match `ACTIVITY_CALENDAR` exactly |
-  | Coverage | Every trip day has ≥ 1 activity; no overlapping times |
-  | Budget | `total_cost` = sum of prices, and ≤ budget; budget utilization % |
-  | Personalization | Each traveler's interests are covered by at least one activity |
-  | Weather | No outdoor-only activity on days in `INCLIMATE_WEATHER_CONDITIONS` |
+| Slice | Question | Key metric |
+|---|---|---|
+| B0 – Foundation | Can we run a repeatable experiment? | parse rate; latency, tokens, cost |
+| B1 – Hallucination & grounding | Is everything in the plan real? | hallucination rate (0%) |
+| B2 – Constraints & goal completion | Are the hard constraints met? | task success rate (100%) |
+| B3 – Relevancy & reasoning verification | Is it relevant, and is the reasoning faithful? | interest coverage, answer relevancy (judge), consistency |
+| B4 – Consistency & regression gating | Is quality stable, and does a change improve it? | pass^3, v1 vs v2 prompt deltas |
+| B5 – Production feedback loop | How does production improve the evals? | 👎 share, online pass rates, promoted cases |
 
-- **LLM-as-judge:** a stronger model than the planner returns structured output into a Pydantic
-  score model. It does two jobs:
-  - scores personalization, coherence, and the quality of the reasons, each 1–5 against a rubric
-  - classifies each activity as indoor or outdoor, which the weather grader needs
-- **Experiment matrix:** N repetitions per case × model (`gpt-4.1` / `-mini` / `-nano`) × prompt
-  version (from the `PROMPT_VERSION` env var).
-- **Outputs:**
-  - results in JSONL, gitignored
-  - a summary report with pass rates, mean judge scores, cost and latency per model/prompt
-- **Thresholds**, for example: hard constraints ≥ 95% pass, judge mean ≥ 4. These become the
-  **baseline** for Layer C drift alerts.
-- **Command:** `pytest -m eval`. Run it manually or nightly, never on every PR, because it costs
-  money.
-- **Feedback loop:** use the report to tune the Part A prompt. Known issue: it plans about 1
-  activity per day and underuses the budget.
+Key decisions:
+- Part A only. Tool-use accuracy evals come with the Part B extension.
+- Each full run stays within about 50 LLM calls.
+- Rule-based ground truth, approved by you.
+- Golden datasets versioned in git with a semver manifest.
+- `gpt-4.1-mini` judge, calibrated against human labels.
+- Smoke evals run on PRs that change prompts or the agent; full runs are manual.
+- 👍/👎 feedback in the app.
+- Deterministic graders run online on every live request.
 
 ## 5. Phase 6 – Deploy: Cloud Run + GitHub Actions
 
@@ -119,6 +112,13 @@ Detailed plan: `plan/06-deploy/01-ci-cd-plan.md`.
 - **Docs:** record the region in `CLAUDE.md`.
 
 ## 6. Phase 7 – Layer C: system metrics & drift monitoring (focus, GCP native)
+
+Split into three slices to match the contract in the Layer B overview:
+- **C1 – structured logging + BigQuery sink:** needed by B5.
+- **C2 – log-based metrics + dashboard.**
+- **C3 – alert policies:** drift against the B4 baselines, cost, errors.
+
+All three reuse Layer B's `EvalRecord` schema and its deterministic graders.
 
 - **Structured logging:** one JSON log line per LLM run goes to stdout, and Cloud Run sends it to
   Cloud Logging automatically. Fields:
@@ -143,6 +143,9 @@ Detailed plan: `plan/06-deploy/01-ci-cd-plan.md`.
 ## 7. Backlog / to-do
 
 - [ ] Move Layer B from custom pytest evals to an eval framework (e.g. DeepEval or promptfoo)
-- [ ] Part B: the ReAct travel assistant, plus its own evals
+- [ ] Part B: the ReAct travel assistant, plus its own evals. This adds **tool-use accuracy**
+  (right tool, right arguments) and trajectory checks on top of Layer B's B3 reasoning checks
 - [ ] Delete the old misnamed private GitHub repo (needs `gh auth refresh -s delete_repo`)
 - [ ] Optional: turn on GitHub's "automatically delete head branches"
+- [ ] Apply branch protection on `main` (rules approved in `plan/06-deploy/01-ci-cd-plan.md` §4.5)
+- [ ] Set the `MODEL` repo variable to a supported model (currently `gpt-4o-mini`, so the app falls back to `gpt-4.1-mini`)
