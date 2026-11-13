@@ -5,14 +5,17 @@
 # Run with:  streamlit run app.py
 
 import datetime
+from pathlib import Path
 
 import streamlit as st
 from pydantic import ValidationError
 
 from llm import get_default_model
-from models import OpenAIModel, VacationInfo
+from models import OpenAIModel, TravelPlan, VacationInfo
 from project_lib import Interest
+from ui.render import render_travel_plan
 
+SAMPLE_PLAN_PATH = Path(__file__).parent / "sample_plan.json"
 CITIES = ["AgentsVille"]
 # The mocked weather/activities APIs only have data for these dates.
 MOCK_START = datetime.date(2025, 6, 10)
@@ -100,6 +103,11 @@ def format_errors(err: ValidationError) -> list[str]:
     return messages
 
 
+# Phase 3 – Step 3: stand-in result so the results view can be built without LLM calls
+def load_sample_plan() -> TravelPlan:
+    return TravelPlan.model_validate_json(SAMPLE_PLAN_PATH.read_text(encoding="utf-8"))
+
+
 # Phase 3 – Step 2: page layout and the Generate button
 def main() -> None:
     st.set_page_config(page_title="AgentsVille Trip Planner", page_icon="🧳")
@@ -120,15 +128,22 @@ def main() -> None:
                 budget=trip["budget"],
             )
         except ValidationError as err:
+            # Drop any earlier result so a stale plan isn't shown under an invalid form.
+            for k in ("vacation_info", "travel_plan"):
+                st.session_state.pop(k, None)
             st.error("Please fix the following:\n\n" + "\n".join(f"- {m}" for m in format_errors(err)))
         else:
             st.session_state.vacation_info = vacation_info
             st.session_state.model = trip["model"]
+            st.session_state.travel_plan = load_sample_plan()  # Step 4: replace with the agent call
 
-    # Step 2 placeholder: show what would be sent to the agent.
-    if "vacation_info" in st.session_state:
-        st.success(f"Request is valid. Model: {st.session_state.model.value}")
-        st.json(st.session_state.vacation_info.model_dump(mode="json"))
+    # Phase 3 – Step 3: results are read from session_state, so they survive later re-runs
+    # (e.g. clicking Download or expanding a day).
+    if "travel_plan" in st.session_state:
+        st.divider()
+        render_travel_plan(st.session_state.travel_plan, st.session_state.vacation_info.budget)
+        with st.expander(f"Request sent to the agent (model: {st.session_state.model.value})"):
+            st.json(st.session_state.vacation_info.model_dump(mode="json"))
 
 
 if __name__ == "__main__":
