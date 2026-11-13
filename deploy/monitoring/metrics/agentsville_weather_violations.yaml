@@ -1,0 +1,14 @@
+name: agentsville_weather_violations
+description: '[Phase 7 – C2] Runs with an outdoor activity on a rainy/thunderstorm
+  day (whole-day policy)'
+filter: resource.type="cloud_run_revision" AND resource.labels.service_name="agentsville-trip-planner"
+  AND jsonPayload.app="agentsville" AND jsonPayload.event="llm_run" AND jsonPayload.hard_failed:"weather_safety"
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: '1'
+  labels:
+  - key: prompt_version
+    valueType: STRING
+labelExtractors:
+  prompt_version: EXTRACT(jsonPayload.prompt_version)

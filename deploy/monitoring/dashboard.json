@@ -1,0 +1,378 @@
+{
+  "displayName": "AgentsVille – AI quality & ops",
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "xPos": 0,
+        "yPos": 0,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Task success rate (1h window) – v1 baseline 58%",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "1 - (sum by (prompt_version) (increase(logging_googleapis_com:user_agentsville_task_failures{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h])) / sum by (prompt_version) (increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h])))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "${labels.prompt_version}",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [
+              {
+                "label": "v1 baseline (B4)",
+                "value": 0.58,
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "ratio",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 0,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Hallucinations (must stay 0)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_agentsville_hallucinations{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h]))",
+                  "unitOverride": ""
+                },
+                "plotType": "STACKED_BAR",
+                "legendTemplate": "hallucinations / h",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "count",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 0,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Weather violations & parse failures",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_agentsville_weather_violations{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h]))",
+                  "unitOverride": ""
+                },
+                "plotType": "STACKED_BAR",
+                "legendTemplate": "weather violations / h",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_agentsville_parse_failures{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h]))",
+                  "unitOverride": ""
+                },
+                "plotType": "STACKED_BAR",
+                "legendTemplate": "parse failures / h",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "count",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Generated itineraries per hour",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (prompt_version) (increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h]))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "${labels.prompt_version}",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "runs",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "User feedback 👍 / 👎",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (rating) (increase(logging_googleapis_com:user_agentsville_feedback{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h]))",
+                  "unitOverride": ""
+                },
+                "plotType": "STACKED_BAR",
+                "legendTemplate": "${labels.rating}",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "ratings",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "LLM errors (no reply)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_agentsville_llm_errors{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[10m]))",
+                  "unitOverride": ""
+                },
+                "plotType": "STACKED_BAR",
+                "legendTemplate": "errors / 10 min",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "count",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 32,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "LLM latency p50 / p95 (ms)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.5, sum by (le) (rate(logging_googleapis_com:user_agentsville_llm_latency_ms_bucket{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h])))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "p50",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (le) (rate(logging_googleapis_com:user_agentsville_llm_latency_ms_bucket{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h])))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "p95",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [
+              {
+                "label": "A5 alert",
+                "value": 60000,
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "ms",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 32,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Estimated LLM cost per hour (USD)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_agentsville_llm_cost_usd_sum{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h]))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "USD / h",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "USD",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 32,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Completion tokens p50",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.5, sum by (le) (rate(logging_googleapis_com:user_agentsville_llm_tokens_bucket{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[1h])))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "p50",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "tokens",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 48,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Run requests by response class",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (response_code_class) (rate(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[5m]))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "${labels.response_code_class}",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "req/s",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 48,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Cloud Run instances",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(run_googleapis_com:container_instance_count{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"})",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "instances",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "count",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 48,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Container memory utilization p95",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (le) (rate(run_googleapis_com:container_memory_utilizations_bucket{monitored_resource=\"cloud_run_revision\",service_name=\"agentsville-trip-planner\"}[5m])))",
+                  "unitOverride": ""
+                },
+                "plotType": "LINE",
+                "legendTemplate": "p95",
+                "targetAxis": "Y1"
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "ratio",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 64,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "App warnings & errors (llm_run with hard failures, llm_error)",
+          "logsPanel": {
+            "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"agentsville-trip-planner\" AND jsonPayload.app=\"agentsville\" AND severity>=WARNING",
+            "resourceNames": []
+          }
+        }
+      }
+    ]
+  },
+  "labels": {
+    "app": "agentsville"
+  }
+}
