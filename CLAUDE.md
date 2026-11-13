@@ -63,6 +63,9 @@ GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`)
   - re-grade cached replies for free (0 LLM calls): add `--cache replay-only`; force new calls: `--cache refresh`
   - outputs: `evals/results/<UTC>_<mode>/{records.jsonl,report.md,report.json}`; cached replies in `evals/cache/` (both gitignored)
 - Budget rule: a full eval run must stay within ~50 LLM calls.
+- Prompt versions: `prompts/itinerary/v<N>.md` (`string.Template`: exactly `$schema`, `$weather`, `$activities`), selected by `PROMPT_VERSION` (case-insensitive; default `v1`). **v1 is live**; v2 and v3 were evaluated and rejected by the gate. v1 is sha256-pinned in `tests/test_prompts.py` (eval cache keys hash the prompt). Once a version has been evaluated, add a new version instead of editing it.
+- Compare a candidate with the accepted baseline: `python -m evals.harness.runner --mode full --prompt-version v3 --compare-to v1` (report gets a "Comparison vs baseline" section). Accept a new baseline only on purpose: `--accept-baseline`, committed via PR (`evals/baselines/`).
+- CI smoke gate: `python -m evals.harness.gate` (newest prompt vs the shipped `PROMPT_VERSION` baseline; a new hard failure gets one confirm run; fails only on a confirmed regression or any hallucination). Runs in `.github/workflows/evals-smoke.yml` on PRs touching prompts/agents/models/quality/evals (uses the `OPENAI_API_KEY` Actions secret). Manual full run: `evals-full.yml`.
 
 ## Testing conventions
 

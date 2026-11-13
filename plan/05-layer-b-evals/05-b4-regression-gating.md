@@ -1,6 +1,6 @@
 # Layer B – B4 Consistency, regression gating & eval-driven improvement
 
-Status: **Approved**: Q1 (b) confirm run · Q2 GitHub secret OK · Q3 ≈ 51 calls OK · Q4 ship v2 if it wins (via PR)
+Status: **Done**: the infrastructure is shipped; **v1 stays live** (v2 and v3 were rejected by the regression gate; decided by the project owner)
 
 Parent plan: `00-layer-b-overview.md` · Builds on: B0–B2 (merged), B3 (PR #8)
 
@@ -123,6 +123,33 @@ Unit tests assert that v2 contains each rule. Whether the rules *work* is what t
    only the 8 repeat-0 runs (35 calls).
 4. **Ship rule:** if v2 wins, should I switch the live app to v2 (`PROMPT_VERSION=v2`) as part of B4?
    *(recommended: yes, through a PR with the comparison report)*
+
+## 9b. Results and ship decision
+
+Full runs (`itinerary_golden@1.0.0`, 24 runs each, gpt-4.1-mini):
+
+| Metric | v1 (live) | v2 | v3 |
+|---|---|---|---|
+| Task success | 58% | 92% | 92% |
+| Hallucination | 0% | 0% | 0% |
+| Weather safety | 65% | 100% | 100% |
+| Day coverage | 100% | 92% ❌ | 100% |
+| Budget (real spend) | 100% | 100% | 96% ❌ |
+| Cost arithmetic | 91% | 100% | 92% |
+| pass^3 / pass@3 | 50% / 75% | 75% / 100% | 88% / 100% |
+| Gate verdict | baseline | ❌ G5/G6 empty days | ❌ G6 over budget |
+
+- **v2:** fixed weather, pricing and parsing, but its honesty rule over-corrected. G5#2 planned zero
+  activities for an unmatched interest, and G6#2 left the last day empty.
+- **v3:** fixed the empty days and is the most reliable version (pass^3 88%), but on the 6-day trip it
+  fills days and then mis-adds. G6#0 states 195, really spends 220 > 200.
+- **Grader fix found on the way:** `budget_within_limit` now checks **real spend**. The stated total had
+  hidden v3's overspend.
+- **Decision:** neither version passes the no-regression rule, so **v1 stays live**. v2 and v3 stay in
+  the repo as evaluated, rejected candidates.
+- **Lesson:** the remaining failures are arithmetic slips. More prompt text gives diminishing returns.
+  The proposed next step is a **validate-and-repair guardrail**: code computes the totals and runs the
+  hard graders, then sends the model one repair turn listing the violations. See the backlog.
 
 ## 10. Implementation steps
 
