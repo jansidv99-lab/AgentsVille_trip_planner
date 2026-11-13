@@ -19,7 +19,8 @@ def grade(vacation_info, plan, expectations=THEATRE_EXPECTATIONS, raw="raw reply
 
 
 def failing(results) -> set[str]:
-    return {name for name, r in results.items() if r.passed is False}
+    # Phase 5 – B3 Step 1: B3 (soft relevancy/reasoning) graders are tested in test_relevancy_graders.py
+    return {name for name, r in results.items() if r.passed is False and r.slice != "B3"}
 
 
 def first_activity(plan, day=0, rec=0):
@@ -161,5 +162,5 @@ def test_unparsed_reply_makes_grounding_not_applicable(vacation_info):
 
 def test_every_grader_has_a_slice_and_unique_name(vacation_info, sample_plan):
     results = run_graders(GradingInput.for_request(vacation_info, sample_plan, "raw"))
-    assert all(r.slice in ("B0", "B1", "B2") for r in results)
+    assert all(r.slice in ("B0", "B1", "B2", "B3") for r in results)
     assert len({r.grader for r in results}) == len(GRADERS)
