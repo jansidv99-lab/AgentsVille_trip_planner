@@ -62,8 +62,12 @@ def llm_run_event(trace: PromptTrace, vacation_info: VacationInfo, results: list
         "task_success": success,
         "hallucination": hallucination,
         "hard_failed": hard_failed,
+        # Stable shape for BigQuery: variable-keyed details (e.g. dates as keys) are a JSON *string*, else
+        # the log sink could reject the row (dynamic keys aren't valid column names).
         "graders": [{"grader": r.grader, "slice": r.slice, "severity": r.severity, "passed": r.passed,
-                     "score": r.score, **({"details": r.details} if r.passed is False else {})} for r in results],
+                     "score": None if r.score is None else float(r.score),
+                     "details_json": json.dumps(r.details, default=str) if r.passed is False else None}
+                    for r in results],
         "request": vacation_info.model_dump(mode="json"),  # includes traveler names (decision)
         "features": request_features(vacation_info),
         "raw_response": trace.raw_response if hard_failed else None,  # only for runs that need review

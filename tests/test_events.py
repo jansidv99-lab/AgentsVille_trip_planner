@@ -51,8 +51,21 @@ def test_llm_run_event_with_a_hard_failure_includes_reply_and_details(vacation_i
     assert line["hard_failed"] == ["cost_arithmetic"]
     assert line["raw_response"] == "THE RAW REPLY"
     failing = next(g for g in line["graders"] if g["grader"] == "cost_arithmetic")
-    assert failing["details"]["diff"] == -1
-    assert "details" not in next(g for g in line["graders"] if g["grader"] == "parse")  # passing → compact
+    assert json.loads(failing["details_json"])["diff"] == -1
+    assert next(g for g in line["graders"] if g["grader"] == "parse")["details_json"] is None  # passing → compact
+
+
+# Phase 7 – C1 Step 1: every grader entry has the same keys and types (BigQuery infers a fixed schema)
+def test_grader_entries_have_a_stable_bigquery_friendly_shape(vacation_info, sample_plan):
+    plan = sample_plan.model_copy(deep=True)
+    plan.itinerary_days[2].weather.condition = "sunny"   # weather mismatch → details keyed by a DATE
+    results = run_graders(GradingInput.for_request(vacation_info, plan, "raw"))
+    _, line = emitted(llm_run_event, trace_for(plan), vacation_info, results)
+    keys = {tuple(sorted(g)) for g in line["graders"]}
+    assert keys == {("details_json", "grader", "passed", "score", "severity", "slice")}
+    assert all(g["score"] is None or isinstance(g["score"], float) for g in line["graders"])
+    weather = next(g for g in line["graders"] if g["grader"] == "weather_matches_forecast")
+    assert "2025-06-12" in json.loads(weather["details_json"])["mismatches"]  # dynamic key safely inside a string
 
 
 def test_feedback_event_caps_comment_and_validates_rating():
