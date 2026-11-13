@@ -1,0 +1,2 @@
+# Phase 5 – B0 Step 1: keep golden datasets byte-identical on every OS (their sha256 is in the manifest)
+evals/datasets/** text eol=lf
