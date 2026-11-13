@@ -1,0 +1,3 @@
+# Phase 4 – Step 1: development / test dependencies (runtime deps come from requirements.txt)
+-r requirements.txt
+pytest==9.0.3

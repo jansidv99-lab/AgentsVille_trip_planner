@@ -1,0 +1,16 @@
+# Phase 6 – Step 1: keep the Docker build context minimal and secret-free.
+# Allow-list approach: ignore everything, then re-include only what the image needs.
+# A new file (e.g. another .env variant) is therefore excluded by default.
+*
+
+!requirements.txt
+!app.py
+!models.py
+!llm.py
+!project_lib.py
+!agents/
+!ui/
+
+# Never ship caches, even inside allowed folders.
+**/__pycache__
+**/*.pyc

@@ -1,0 +1,70 @@
+# Phase 6 – Step 2: CI – runs on every pull request to main.
+# Both jobs are required status checks in branch protection (CI/CD plan §4.5),
+# so a PR can't be merged (and therefore can't be deployed) unless both are green.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: CI only needs to read the code. No secrets are used.
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the older, now-outdated run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Phase 6 – Step 2: Layer A deterministic tests (fake LLM client, no network, ~2 s)
+  layer-a-tests:
+    name: Layer A tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run Layer A tests
+        run: pytest -v
+
+  # Phase 6 – Step 2: the image builds, contains no .env, and the app starts and answers health checks
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t agentsville:ci .
+
+      - name: Check no secrets are in the image
+        run: |
+          docker run --rm agentsville:ci sh -c 'test ! -e /app/.env'
+          echo "OK - no .env in image"
+
+      - name: Start container and check health
+        run: |
+          # A dummy key is enough: the app only calls the LLM when "Generate" is clicked.
+          docker run -d --name app -p 8080:8080 -e OPENAI_API_KEY=dummy agentsville:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/_stcore/health | grep -q ok; then
+              echo "Healthy after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "App did not become healthy"; docker logs app; exit 1

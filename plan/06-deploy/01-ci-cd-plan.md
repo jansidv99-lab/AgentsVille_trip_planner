@@ -175,8 +175,8 @@ EOF
 
 ## 5. Implementation steps
 
-Branch: your existing `feature/ci_cd_pipeline`, rebased onto `main` once the Layer A tests are
-merged. Each new file starts with a `# Phase 6 – Step N: …` comment (YAML and shell support `#`).
+Branch: `feature/layer-a-tests-and-ci-cd`, the same branch as the Layer A tests (your
+decision), so Layer A and CI/CD ship in one PR. Each new file starts with a `# Phase 6 – Step N: …` comment (YAML and shell support `#`).
 
 | Step | Purpose | Depends on | Files / actions |
 |---|---|---|---|
