@@ -10,6 +10,7 @@
 import argparse
 import datetime
 import json
+import shutil
 import string
 import subprocess
 import sys
@@ -38,9 +39,16 @@ def candidates_path(dataset: str = "itinerary_golden", datasets_dir: Path = DATA
 
 # Phase 5 – B5 Step 6: query BigQuery with the bq CLI (no extra Python dependency)
 def fetch_flagged_rows(project: str, days: int) -> list[dict]:
-    sql = MINE_SQL.format(project=project, dataset=BQ_DATASET, days=int(days))
-    out = subprocess.run(["bq", "--project_id", project, "query", "--use_legacy_sql=false", "--format=json",
-                          "--max_rows=1000", sql], capture_output=True, text=True, check=True).stdout
+    # One line: on Windows bq is a .cmd batch file, and cmd.exe truncates arguments at newlines.
+    sql = " ".join(MINE_SQL.format(project=project, dataset=BQ_DATASET, days=int(days)).split())
+    bq = shutil.which("bq") or "bq"  # Windows installs bq as bq.cmd, which subprocess can't find by bare name
+    # --headless + no stdin + timeout: bq must never wait on an interactive prompt (it hung once on Windows).
+    out = subprocess.run([bq, "--headless", "--project_id", project, "query", "--use_legacy_sql=false",
+                          "--format=json", "--max_rows=1000", sql], capture_output=True, text=True,
+                         stdin=subprocess.DEVNULL, timeout=120, check=False)
+    if out.returncode != 0:
+        raise RuntimeError(f"bq query failed: {(out.stderr or out.stdout).strip()[-800:]}")
+    out = out.stdout
     return json.loads(out or "[]")
 
 
