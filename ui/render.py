@@ -4,7 +4,7 @@
 import streamlit as st
 
 from models import ActivityRecommendation, ItineraryDay, PromptTrace, TravelPlan, VacationInfo
-from quality.graders import HALLUCINATION_GRADERS, GradingInput, run_graders
+from quality.graders import CONSTRAINT_GRADERS, HALLUCINATION_GRADERS, GradingInput, run_graders, task_succeeded
 
 INSPECTOR_HEIGHT = 400  # px; long prompts scroll inside the box
 
@@ -91,9 +91,13 @@ def render_quality_checks(trace: PromptTrace, vacation_info: VacationInfo) -> No
     results = run_graders(GradingInput.for_request(vacation_info, trace.travel_plan, trace.raw_response))
     hard = [r for r in results if r.severity == "hard" and r.passed is not None]
     hallucinated = [r.grader for r in results if r.grader in HALLUCINATION_GRADERS and r.passed is False]
+    violated = [r.grader for r in results if r.grader in CONSTRAINT_GRADERS and r.passed is False]
     st.markdown(
         f"**Hard checks passed: {sum(r.passed for r in hard)}/{len(hard)}** · "
+        + ("✅ task success" if task_succeeded(results) else "❌ task failed") + " · "
         + ("❌ hallucination detected: " + ", ".join(hallucinated) if hallucinated else "✅ no hallucination detected")
+        + " · "
+        + ("❌ constraints violated: " + ", ".join(violated) if violated else "✅ all constraints met")
     )
     st.caption("The same deterministic graders the offline evals use (Layer B), run here on live output. "
                "➖ = not applicable · info checks are signals, not verdicts.")

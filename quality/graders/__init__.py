@@ -3,6 +3,15 @@
 # same deterministic code grades offline eval runs and live production traffic.
 
 from quality.graders.base import Grader, GradingInput, grader, not_applicable
+from quality.graders.constraints import (
+    CONSTRAINT_GRADERS,
+    grade_budget_within_limit,
+    grade_cost_arithmetic,
+    grade_day_coverage,
+    grade_no_time_overlaps,
+    grade_plan_shape,
+    grade_weather_safety,
+)
 from quality.graders.grounding import (
     HALLUCINATION_GRADERS,
     grade_activity_details_match,
@@ -26,7 +35,17 @@ GRADERS: list[Grader] = [
     grade_plan_matches_request,
     grade_description_verbatim,
     grade_uncoverable_interest_mentions,
+    # B2 – constraint compliance & goal completion
+    grade_budget_within_limit,
+    grade_cost_arithmetic,
+    grade_day_coverage,
+    grade_no_time_overlaps,
+    grade_weather_safety,
+    grade_plan_shape,
 ]
+
+# Phase 5 – B2 Step 3: task success (goal completion) = parses, no hallucination, all hard constraints met
+TASK_SUCCESS_GRADERS = ("parse", *HALLUCINATION_GRADERS, *CONSTRAINT_GRADERS)
 
 
 # Phase 5 – B1 Step 1: run every registered grader and stamp each result with its slice
@@ -34,4 +53,11 @@ def run_graders(inp: GradingInput) -> list[GraderResult]:
     return [g(inp).model_copy(update={"slice": getattr(g, "slice", None)}) for g in GRADERS]
 
 
-__all__ = ["GRADERS", "HALLUCINATION_GRADERS", "Grader", "GradingInput", "grader", "not_applicable", "run_graders"]
+# Phase 5 – B2 Step 3: one run succeeded iff every task-success grader passed
+def task_succeeded(results: list[GraderResult]) -> bool:
+    by_name = {r.grader: r for r in results}
+    return all(by_name.get(g) is not None and by_name[g].passed is True for g in TASK_SUCCESS_GRADERS)
+
+
+__all__ = ["CONSTRAINT_GRADERS", "GRADERS", "HALLUCINATION_GRADERS", "TASK_SUCCESS_GRADERS", "Grader", "GradingInput",
+           "grader", "not_applicable", "run_graders", "task_succeeded"]

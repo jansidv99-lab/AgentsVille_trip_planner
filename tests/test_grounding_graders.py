@@ -39,7 +39,10 @@ def _fake_id(p):
     first_activity(p).activity_id = "event-2025-06-10-99"
 
 
+# Phase 5 – B2 Step 3: mutations keep total_cost = sum of prices, so B2's cost_arithmetic stays green and
+# each mutation still breaks exactly ONE property.
 def _price(p):
+    p.total_cost -= first_activity(p).price - 5
     first_activity(p).price = 5
 
 
@@ -68,6 +71,7 @@ def _extra_day(p):
     rec = ActivityRecommendation(activity=act, reasons_for_recommendation=template.reasons_for_recommendation)
     weather = {"temperature": 15, "temperature_unit": "celsius", "condition": "rainy"}
     p.itinerary_days.append(ItineraryDay(date=datetime.date(2025, 6, 13), weather=weather, activity_recommendations=[rec]))
+    p.total_cost += act["price"]
 
 
 def _wrong_city(p):
@@ -157,5 +161,5 @@ def test_unparsed_reply_makes_grounding_not_applicable(vacation_info):
 
 def test_every_grader_has_a_slice_and_unique_name(vacation_info, sample_plan):
     results = run_graders(GradingInput.for_request(vacation_info, sample_plan, "raw"))
-    assert all(r.slice in ("B0", "B1") for r in results)
+    assert all(r.slice in ("B0", "B1", "B2") for r in results)
     assert len({r.grader for r in results}) == len(GRADERS)

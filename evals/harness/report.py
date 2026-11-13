@@ -7,8 +7,42 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
+from quality.graders import task_succeeded
 from quality.graders.grounding import HALLUCINATION_GRADERS
 from quality.schema import EvalRecord
+
+
+# Phase 5 – B2 Step 4: task success (goal completion) = parse + no hallucination + all hard constraints
+def task_success_rate(records: list[EvalRecord]) -> Optional[float]:
+    if not records:
+        return None
+    return round(sum(task_succeeded(r.grader_results) for r in records) / len(records), 3)
+
+
+# Phase 5 – B2 Step 4: constraint details – weather violations, cost errors, plan shape per case
+def constraint_summary(records: list[EvalRecord]) -> dict:
+    weather, cost, shape = [], [], defaultdict(list)
+    for r in records:
+        run_id = f"{r.case_id}#{r.repeat}"
+        ws, ca, ps = r.result("weather_safety"), r.result("cost_arithmetic"), r.result("plan_shape")
+        for day, ids in ((ws.details.get("unsafe") or {}).items() if ws else []):
+            weather.append({"run": run_id, "day": day, "ids": ids})
+        if ca is not None and ca.passed is False:
+            cost.append({"run": run_id, "stated": ca.details.get("stated"), "computed": ca.details.get("computed"),
+                         "hint": ca.details.get("hint", "")})
+        if ps is not None and "activities_per_day" in ps.details:  # skip "not applicable" (unparsed) runs
+            shape[r.case_id].append(ps.details)
+    return {
+        "task_success_rate": task_success_rate(records),
+        "failed_runs": [f"{r.case_id}#{r.repeat}" for r in records if not task_succeeded(r.grader_results)],
+        "weather_violations": weather,
+        "cost_errors": cost,
+        "plan_shape": {
+            cid: {"activities_per_day": round(statistics.fmean(d["activities_per_day"] for d in ds), 2),
+                  "budget_utilization": round(statistics.fmean(d["budget_utilization"] for d in ds), 3)}
+            for cid, ds in sorted(shape.items())
+        },
+    }
 
 
 # Phase 5 – B0 Step 4: nearest-rank percentile (p95 of latencies)
@@ -95,6 +129,7 @@ def build_summary(records: list[EvalRecord], meta: dict) -> dict:
 
     return {"meta": meta, "graders": graders, "slices": slices, "overall": stats(records),
             "hallucination": hallucination_summary(records),
+            "constraints": constraint_summary(records),
             "cases": {cid: stats(rs) for cid, rs in sorted(by_case.items())}}
 
 
@@ -108,6 +143,7 @@ def _fmt(value, pct: bool = False) -> str:
 def render_markdown(summary: dict) -> str:
     m, o, graders = summary["meta"], summary["overall"], summary["graders"]
     slices, h = summary.get("slices", {}), summary.get("hallucination") or {}
+    c = summary.get("constraints") or {}
 
     def label(g: str) -> str:
         return f"{slices.get(g) or '?'} · {g}"
@@ -127,6 +163,7 @@ def render_markdown(summary: dict) -> str:
         "",
         "| Metric | Value |",
         "|---|---|",
+        f"| **Task success rate** (target 100%) | **{_fmt(c.get('task_success_rate'), pct=True)}** |",
         f"| **Hallucination rate** (target 0%) | **{_fmt(h.get('rate'), pct=True)}** |",
         *[f"| {label(g)} pass rate | {_fmt(o['pass_rates'][g], pct=True)} |" for g in rated],
         f"| Latency mean / p95 (ms) | {_fmt(o['latency_ms_mean'])} / {_fmt(o['latency_ms_p95'])} |",
@@ -154,7 +191,23 @@ def render_markdown(summary: dict) -> str:
         f"- **Reasons mentioning an uncoverable interest** (info – honesty is judged in B3): {len(mentions)}",
         *[f"  - {mm['run']} `{mm['id']}` ({mm['interest']}): \"{mm['reason']}\"" for mm in mentions[:10]],
         "",
-        "_Constraint (B2) and relevancy/reasoning (B3) graders are added in later slices._",
+        "## Constraints & task success (B2)",
+        "",
+        f"- **Task success:** {_fmt(c.get('task_success_rate'), pct=True)} of runs parsed, had no hallucination "
+        "and met every hard constraint",
+        f"- **Failed runs:** {', '.join(c.get('failed_runs') or []) or 'none'}",
+        f"- **Weather violations** (outdoor activity on a rainy/thunderstorm day): {len(c.get('weather_violations') or [])}",
+        *[f"  - {w['run']} {w['day']}: {', '.join(w['ids'])}" for w in (c.get("weather_violations") or [])],
+        f"- **Cost errors** (total ≠ sum of prices): {len(c.get('cost_errors') or [])}",
+        *[f"  - {e['run']}: stated {e['stated']}, computed {e['computed']}" + (f" ({e['hint']})" if e["hint"] else "")
+          for e in (c.get("cost_errors") or [])],
+        "",
+        "| Case | Activities / day | Budget utilization |",
+        "|---|---|---|",
+        *[f"| {cid} | {s['activities_per_day']} | {s['budget_utilization']:.0%} |"
+          for cid, s in (c.get("plan_shape") or {}).items()],
+        "",
+        "_Relevancy & reasoning (B3) graders are added in a later slice._",
         "",
     ]
     return "\n".join(lines)

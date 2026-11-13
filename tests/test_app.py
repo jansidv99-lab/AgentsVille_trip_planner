@@ -78,14 +78,21 @@ def test_generate_shows_itinerary_and_inspector(app, sample_plan, llm_reply):
 
     # Phase 5 – B1 Step 5: the Quality checks tab grades the grounded sample plan as clean
     quality = " ".join(m.value for m in app.markdown)
-    assert "Hard checks passed: 6/6" in quality and "no hallucination detected" in quality
-    assert "`activity_exists`" in quality
+    # Phase 5 – B2 Step 6: 11 hard checks now (parse + 5 grounding + 5 constraints)
+    assert "Hard checks passed: 11/11" in quality and "task success" in quality
+    assert "no hallucination detected" in quality and "all constraints met" in quality
+    assert "`activity_exists`" in quality and "`weather_safety`" in quality
 
 
-# Phase 5 – B1 Step 5: an ungrounded itinerary (wrong price) is flagged live in the Quality checks tab
-def test_quality_checks_flag_hallucination(app, sample_plan, llm_reply):
+# Phase 5 – B2 Step 6: an outdoor hike on the thunderstorm day (the G2/G7 failure) is flagged live
+def test_quality_checks_flag_storm_hike(app, sample_plan, llm_reply):
+    from models import ActivityRecommendation
+    from project_lib import ACTIVITY_CALENDAR
+    hike = next(a for a in ACTIVITY_CALENDAR if a["activity_id"] == "event-2025-06-12-0")
     bad_plan = sample_plan.model_copy(deep=True)
-    bad_plan.itinerary_days[0].activity_recommendations[0].activity.price = 5
+    bad_plan.itinerary_days[2].activity_recommendations.append(
+        ActivityRecommendation(activity=hike, reasons_for_recommendation=["Matches hiking"]))
+    bad_plan.total_cost += hike["price"]
 
     def fake_get_itinerary(self, vacation_info, model=None):
         self.last_trace = make_trace(vacation_info, model, llm_reply, bad_plan)
@@ -97,7 +104,28 @@ def test_quality_checks_flag_hallucination(app, sample_plan, llm_reply):
 
     assert not app.exception
     quality = " ".join(m.value for m in app.markdown)
-    assert "Hard checks passed: 5/6" in quality
+    assert "Hard checks passed: 10/11" in quality and "task failed" in quality
+    assert "constraints violated: weather_safety" in quality and "no hallucination detected" in quality
+    assert any("event-2025-06-12-0" in str(j.value) for j in app.json)
+
+
+# Phase 5 – B1 Step 5: an ungrounded itinerary (wrong price) is flagged live in the Quality checks tab
+def test_quality_checks_flag_hallucination(app, sample_plan, llm_reply):
+    bad_plan = sample_plan.model_copy(deep=True)
+    bad_plan.itinerary_days[0].activity_recommendations[0].activity.price = 5
+    bad_plan.total_cost -= 15  # keep the arithmetic consistent: isolate the hallucination
+
+    def fake_get_itinerary(self, vacation_info, model=None):
+        self.last_trace = make_trace(vacation_info, model, llm_reply, bad_plan)
+        return bad_plan
+
+    fill_first_traveler(app)
+    with patch.object(ItineraryAgent, "get_itinerary", autospec=True, side_effect=fake_get_itinerary):
+        click_generate(app)
+
+    assert not app.exception
+    quality = " ".join(m.value for m in app.markdown)
+    assert "Hard checks passed: 10/11" in quality
     assert "hallucination detected: activity_details_match" in quality
     assert any("event-2025-06-10-0" in str(j.value) for j in app.json)
 
