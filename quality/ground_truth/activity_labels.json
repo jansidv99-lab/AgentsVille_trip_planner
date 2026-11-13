@@ -1,0 +1,108 @@
+{
+  "name": "activity_labels",
+  "version": "1.0.0",
+  "description": "Indoor/outdoor/flex setting of each mock activity, used by the B2 weather_safety grader. flex = outdoor with a stated rain backup indoors. Evidence is quoted verbatim from the description.",
+  "review": {
+    "status": "approved",
+    "reviewer": "vamsidhardv",
+    "reviewed_on": "2026-11-13"
+  },
+  "labels": {
+    "event-2025-06-10-0": {
+      "setting": "indoor",
+      "evidence": "Held indoors at the spacious Innovation Atrium, this event is perfect for tech lovers eager to exchange ideas and discover new possibilities in a comfortable, modern setting."
+    },
+    "event-2025-06-10-1": {
+      "setting": "outdoor",
+      "evidence": "Kick off your lunch hour with a friendly round of doubles on our outdoor courts, then unwind with a hands-on cooking workshop led by a local chef, where you'll prepare and enjoy delicious energy-boosting recipes."
+    },
+    "event-2025-06-10-2": {
+      "setting": "flex",
+      "evidence": "(Event is held outdoors; in case of rain, we move indoors to the Community Gym nearby.)"
+    },
+    "event-2025-06-10-3": {
+      "setting": "indoor",
+      "evidence": "Set indoors in AgentsVille's coziest lounge, enjoy writing games, group prompts, and opportunities to read your work aloud."
+    },
+    "event-2025-06-11-0": {
+      "setting": "indoor",
+      "evidence": "This lively event welcomes dancers of all levels to join a vibrant indoor session filled with upbeat music and fun routines."
+    },
+    "event-2025-06-11-1": {
+      "setting": "indoor",
+      "evidence": "Held indoors at The Digital Atrium, this Tech Lunch & Learn features engaging lightning talks, interactive demos, and networking opportunities all centered around technology and innovation."
+    },
+    "event-2025-06-11-2": {
+      "setting": "outdoor",
+      "evidence": "Surrounded by lush gardens under the open sky, enjoy live performances from talented local musicians while exploring an interactive outdoor art gallery featuring works from AgentsVille's creative community."
+    },
+    "event-2025-06-11-3": {
+      "setting": "indoor",
+      "evidence": "At 'Palette & Palate,' participants will begin indoors at The Creative Canvas Studio with a guided session to paint their own culinary-inspired masterpiece."
+    },
+    "event-2025-06-12-0": {
+      "setting": "outdoor",
+      "evidence": "Join fellow nature enthusiasts for a morning of outdoor adventure that blends hiking and gardening!"
+    },
+    "event-2025-06-12-1": {
+      "setting": "flex",
+      "evidence": "In case of rain, the event will move indoors to the adjacent Harmony Hall."
+    },
+    "event-2025-06-12-2": {
+      "setting": "outdoor",
+      "evidence": "Embark on an outdoor writing journey with fellow enthusiasts on the scenic trails of AgentsVille!"
+    },
+    "event-2025-06-12-3": {
+      "setting": "indoor",
+      "evidence": "This exciting, indoor event at the Virtual Reality Theater is perfect for anyone interested in technology and movies."
+    },
+    "event-2025-06-13-0": {
+      "setting": "indoor",
+      "evidence": "Hosted indoors at The Jiving Parlor in the heart of AgentsVille, this lively event blends hilarious stand-up performances with upbeat group dance sessions."
+    },
+    "event-2025-06-13-1": {
+      "setting": "outdoor",
+      "evidence": "Step into the great outdoors for Trails & Tales, a unique lunchtime event combining invigorating hiking and creative writing in the beautiful forests of AgentsVille."
+    },
+    "event-2025-06-13-2": {
+      "setting": "outdoor",
+      "evidence": "Join us for 'Art & Lens: Outdoor Creative Walk', where art lovers and photography enthusiasts unite!"
+    },
+    "event-2025-06-13-3": {
+      "setting": "outdoor",
+      "evidence": "This outdoor event combines the joy of hiking with the fun of dancing, offering a memorable evening in nature."
+    },
+    "event-2025-06-14-0": {
+      "setting": "outdoor",
+      "evidence": "Join us for a refreshing outdoor morning hike through scenic Emerald Meadows Park, where we'll stop along the way to learn about local plants and do hands-on gardening activities."
+    },
+    "event-2025-06-14-1": {
+      "setting": "outdoor",
+      "evidence": "Join us for a vibrant outdoor gardening event in the heart of AgentsVille!"
+    },
+    "event-2025-06-14-2": {
+      "setting": "outdoor",
+      "evidence": "Whether you're a seasoned gardener or just getting started, this outdoor event invites everyone to dig in and grow together."
+    },
+    "event-2025-06-14-3": {
+      "setting": "indoor",
+      "evidence": "Held indoors at the charming Writers' Waltz Hall, you'll enjoy a vibrant and supportive atmosphere where your imagination can truly move."
+    },
+    "event-2025-06-15-0": {
+      "setting": "indoor",
+      "evidence": "Join fellow writers for an inspiring writing workshop surrounded by the cozy ambiance of our indoor cafe."
+    },
+    "event-2025-06-15-1": {
+      "setting": "indoor",
+      "evidence": "Join us for Lunchtime Groove, AgentsVille's exciting indoor dance social!"
+    },
+    "event-2025-06-15-2": {
+      "setting": "outdoor",
+      "evidence": "This outdoor event welcomes dancers of all levels and ages."
+    },
+    "event-2025-06-15-3": {
+      "setting": "outdoor",
+      "evidence": "Join us for a thrilling outdoor evening of tennis under the setting sun at the Grand Courts!"
+    }
+  }
+}
