@@ -39,10 +39,26 @@ def test_trip_dates_is_inclusive(vacation_info, arrival, departure, expected):
     [
         pytest.param('ANALYSIS: ...\nFINAL OUTPUT:\n```json\n{"a": 1}\n```\nThanks!', id="fenced"),
         pytest.param('  {"a": 1}  ', id="bare"),
+        # Phase 5 – B1 fix: shapes seen (or likely) in real replies
+        pytest.param('ANALYSIS: budget {tight}\nFINAL OUTPUT: JSON with two days\n{"a": 1}', id="unfenced-after-marker"),
+        pytest.param('ANALYSIS: ...\nFINAL OUTPUT:\n```\n{"a": 1}\n```', id="unlabeled-fence"),
     ],
 )
 def test_extract_json(reply):
     assert extract_json(reply) == '{"a": 1}'
+
+
+# Phase 5 – B1 fix: a reply with no JSON at all is returned unchanged (and then fails validation)
+def test_extract_json_without_json_returns_text():
+    reply = "ANALYSIS: ...\nProceeding to compose final JSON."
+    assert extract_json(reply) == reply
+
+
+# Phase 5 – B1 fix: the G8#0 regression – an unfenced but valid plan must parse end to end
+def test_get_itinerary_parses_unfenced_reply(vacation_info, fake_client, sample_plan_json, sample_plan):
+    reply = f"ANALYSIS:\n1. Weather Analysis: {{clear}}\n\nFINAL OUTPUT: JSON with three days\n{sample_plan_json}"
+    agent = ItineraryAgent(client=fake_client(reply), model=OpenAIModel.GPT_41_MINI)
+    assert agent.get_itinerary(vacation_info) == sample_plan
 
 
 # Phase 4 – Step 3: the prompt's context covers exactly the chosen dates

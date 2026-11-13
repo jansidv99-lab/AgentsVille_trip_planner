@@ -27,7 +27,7 @@ from evals.harness.dataset import DATASETS_DIR, load_dataset
 from evals.harness.report import pass_rate, write_report
 from llm import get_client, get_default_model
 from models import OpenAIModel, TravelPlan
-from quality.graders import run_graders
+from quality.graders import GradingInput, run_graders
 from quality.schema import EvalCase, EvalRecord
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
@@ -153,7 +153,7 @@ def run_eval(
                 latency_ms=entry["latency_ms"], prompt_tokens=entry["prompt_tokens"],
                 completion_tokens=entry["completion_tokens"], cost_usd=entry["cost_usd"],
                 parsed=plan is not None, error=error,
-                grader_results=run_graders(case, plan, entry["raw_response"]),
+                grader_results=run_graders(GradingInput.for_case(case, plan, entry["raw_response"])),  # Phase 5 – B1 Step 1
                 cache_key=key, git_sha=sha,
             ))
 

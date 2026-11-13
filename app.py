@@ -162,13 +162,14 @@ def main() -> None:
             st.error("Please fix the following:\n\n" + "\n".join(f"- {m}" for m in format_errors(err)))
 
         # Drop any earlier result so a stale plan isn't shown after a failed attempt.
-        for k in ("vacation_info", "travel_plan", "trace"):
+        for k in ("vacation_info", "travel_plan", "trace", "request"):
             st.session_state.pop(k, None)
 
         if vacation_info is not None:
             plan, trace = run_agent(vacation_info, trip["model"])
             if trace is not None:
                 st.session_state.trace = trace
+                st.session_state.request = vacation_info  # Phase 5 – B1 Step 5: graded against the request
             if plan is not None:
                 st.session_state.vacation_info = vacation_info
                 st.session_state.travel_plan = plan
@@ -180,8 +181,9 @@ def main() -> None:
         render_travel_plan(st.session_state.travel_plan, st.session_state.vacation_info.budget)
 
     # Phase 3 – Step 6: shown after a success, and after a parse error (trace without a plan)
+    # Phase 5 – B1 Step 5: the inspector also grades the itinerary against the request (Quality checks)
     if "trace" in st.session_state:
-        render_prompt_trace(st.session_state.trace)
+        render_prompt_trace(st.session_state.trace, st.session_state.request)
 
 
 if __name__ == "__main__":

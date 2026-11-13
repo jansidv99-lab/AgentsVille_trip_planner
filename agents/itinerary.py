@@ -84,11 +84,19 @@ Vacation information will be provided in the user message.
 
 
 # Phase 3 – Step 0: pull the JSON block out of the "ANALYSIS ... FINAL OUTPUT" response
+# Phase 5 – B1 fix: the full eval found a valid plan written WITHOUT a ```json fence (G8#0) that was
+# wrongly counted as a parse failure. Fallback: the outermost {...} after "FINAL OUTPUT" (or anywhere,
+# if there's no marker). Braces inside the ANALYSIS section are ignored because we start at the marker.
 def extract_json(response: str) -> str:
     text = response.strip()
     if "```json" in text:
-        text = text.split("```json")[1].split("```")[0].strip()
-    return text
+        return text.split("```json")[1].split("```")[0].strip()
+    marker = text.find("FINAL OUTPUT")
+    first = text.find("{", marker if marker >= 0 else 0)
+    last = text.rfind("}")
+    if first != -1 and last > first:
+        return text[first:last + 1]
+    return text  # no JSON at all – validation will report it as a parse failure
 
 
 # Phase 3 – Step 4: raised when the LLM's reply can't be parsed into a TravelPlan;
