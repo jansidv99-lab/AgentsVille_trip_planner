@@ -70,13 +70,14 @@ GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`)
 - The autouse `isolated_env` fixture sets a dummy `OPENAI_API_KEY` and removes `MODEL` / `OPENAI_BASE_URL`, so the local `.env` never affects results.
 - Streamlit UI tests use `streamlit.testing.v1.AppTest`, with widgets addressed by their `key` (e.g. `name_0`, `interests_0`).
 - Golden datasets (`evals/datasets/<name>/vX.Y.Z.jsonl`) are versioned by `manifest.json` (sha256 with line endings normalized, counts, changelog). Editing a dataset requires a version bump (patch: notes; minor: add cases; major: change expectations). Only `review.status: approved` cases run, and approval is the user's decision.
-- New graders are pure functions `grade(case, plan, raw_response) -> GraderResult` added to `quality/graders/GRADERS`; they must stay deterministic so the app can run them online.
+- New graders are pure functions `grade(inp: GradingInput) -> GraderResult`, decorated with `@grader("B<n>")` and added to `quality/graders/GRADERS`. `GradingInput.for_case(...)` is used offline (golden expectations) and `GradingInput.for_request(...)` in production (expectations derived from the request). Return `not_applicable(...)` (`passed=None`) when a check can't apply. Graders must stay deterministic so the app can run them online (the inspector's "Quality checks" tab does).
+- Every new grader needs a mutation test that breaks the known-good `sample_plan` in one way and asserts **only** that grader fails (see `tests/test_grounding_graders.py`).
 
 ## Code layout
 
 - `models.py`: all Pydantic models (`VacationInfo` input, `TravelPlan` output, `PromptTrace`).
 - `llm.py`: OpenAI client (wrapped in `InstrumentedClient` for latency/tokens/cost) and default model from `.env`.
-- `quality/`: shared by app and evals: `schema.py` (`EvalCase`, `EvalRecord`, the one record shape for offline and prod), `graders/`, `pricing.py`.
+- `quality/`: shared by app and evals: `schema.py` (`EvalCase`, `EvalRecord`, the one record shape for offline and prod), `graders/` (`base.py` GradingInput/decorator, `parse.py` B0, `grounding.py` B1 hallucination), `pricing.py`.
 - `evals/`: golden datasets and the harness (`dataset.py`, `cache.py` record/replay, `runner.py`, `report.py`).
 - `agents/itinerary.py`: Part A prompt (built from the trip's dates using the mocked APIs) and `ItineraryAgent`, which records a `PromptTrace` on every run.
 - `project_lib.py`: course-provided helpers, `Interest` enum, `ChatAgent`, and the mocked weather and activities data (only 2025-06-10 … 2025-06-15 in AgentsVille).
