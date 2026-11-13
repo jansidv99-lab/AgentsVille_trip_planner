@@ -2,6 +2,7 @@
 # (moved out of planner.py so they can be imported without side effects).
 
 import datetime
+import uuid
 from enum import Enum
 from typing import List, Optional
 
@@ -101,9 +102,15 @@ class TravelPlan(BaseModel):
 # ---------------------------------------------------------------------------
 
 # Phase 3 – Step 5: one LLM run's inputs and outputs, shown in the prompt inspector
+# Phase 5 – B0 Step 3: plus trace_id and call metrics (latency, tokens, estimated cost)
 class PromptTrace(BaseModel):
+    trace_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     model: str
     system_prompt: str
     user_prompt: str
     raw_response: str
     travel_plan: Optional[TravelPlan] = None  # None when the reply couldn't be parsed
+    latency_ms: Optional[float] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    cost_usd: Optional[float] = None

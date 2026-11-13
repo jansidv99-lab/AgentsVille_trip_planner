@@ -45,7 +45,7 @@ It is built in two parts:
 
 ## Repository status
 
-GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`). Part A (itinerary agent) and the Streamlit UI are merged. Next: the AI QA platform phases in `plan/00-master-plan.md` (Layer A tests → Layer B evals → deploy → Layer C monitoring).
+GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`). Part A (itinerary agent), the Streamlit UI, Layer A tests, and CI/CD (GitHub Actions → Cloud Run, `asia-south1`) are merged and live. In progress: Layer B evals, delivered as scenario slices B0–B5 (`plan/05-layer-b-evals/00-layer-b-overview.md`); Layer C follows (C1 is needed before B5).
 
 ## Commands
 
@@ -57,18 +57,27 @@ GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`)
   - one test: `pytest tests/test_models.py::test_same_day_trip_is_valid`
   - one parametrized case: `pytest "tests/test_models.py::test_invalid_field_is_rejected[zero-budget]"`
   - coverage (optional, needs `pytest-cov`): `pytest --cov=. --cov-report=term-missing`
-- Layer B evals (call the LLM, cost money; excluded by default via `pytest.ini`): `pytest -m eval`
+- Layer B evals (call the LLM, cost credits; excluded from plain `pytest` via `pytest.ini`):
+  - smoke via pytest (3 approved smoke cases × 1): `pytest -m eval -s`
+  - runner: `python -m evals.harness.runner --mode smoke|full [--repeats N] [--model gpt-4.1-nano] [--prompt-version v1]`
+  - re-grade cached replies for free (0 LLM calls): add `--cache replay-only`; force new calls: `--cache refresh`
+  - outputs: `evals/results/<UTC>_<mode>/{records.jsonl,report.md,report.json}`; cached replies in `evals/cache/` (both gitignored)
+- Budget rule: a full eval run must stay within ~50 LLM calls.
 
 ## Testing conventions
 
 - Tests never call the LLM: use the `fake_client` fixture (agent tests) or `patch.object(ItineraryAgent, "get_itinerary", autospec=True, ...)` (UI tests). Shared fixtures live in `tests/conftest.py`.
 - The autouse `isolated_env` fixture sets a dummy `OPENAI_API_KEY` and removes `MODEL` / `OPENAI_BASE_URL`, so the local `.env` never affects results.
 - Streamlit UI tests use `streamlit.testing.v1.AppTest`, with widgets addressed by their `key` (e.g. `name_0`, `interests_0`).
+- Golden datasets (`evals/datasets/<name>/vX.Y.Z.jsonl`) are versioned by `manifest.json` (sha256 with line endings normalized, counts, changelog). Editing a dataset requires a version bump (patch: notes; minor: add cases; major: change expectations). Only `review.status: approved` cases run, and approval is the user's decision.
+- New graders are pure functions `grade(case, plan, raw_response) -> GraderResult` added to `quality/graders/GRADERS`; they must stay deterministic so the app can run them online.
 
 ## Code layout
 
 - `models.py`: all Pydantic models (`VacationInfo` input, `TravelPlan` output, `PromptTrace`).
-- `llm.py`: OpenAI client and default model from `.env`.
+- `llm.py`: OpenAI client (wrapped in `InstrumentedClient` for latency/tokens/cost) and default model from `.env`.
+- `quality/`: shared by app and evals: `schema.py` (`EvalCase`, `EvalRecord`, the one record shape for offline and prod), `graders/`, `pricing.py`.
+- `evals/`: golden datasets and the harness (`dataset.py`, `cache.py` record/replay, `runner.py`, `report.py`).
 - `agents/itinerary.py`: Part A prompt (built from the trip's dates using the mocked APIs) and `ItineraryAgent`, which records a `PromptTrace` on every run.
 - `project_lib.py`: course-provided helpers, `Interest` enum, `ChatAgent`, and the mocked weather and activities data (only 2025-06-10 … 2025-06-15 in AgentsVille).
 - `app.py` + `ui/render.py`: Streamlit form, results view, and prompt inspector.

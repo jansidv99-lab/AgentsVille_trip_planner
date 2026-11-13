@@ -48,8 +48,10 @@ def sample_plan(sample_plan_json) -> TravelPlan:
 class FakeOpenAIClient:
     """Mimics client.chat.completions.create(...) and records every call's arguments."""
 
-    def __init__(self, reply: str):
+    # Phase 5 – B0 Step 3: also returns token usage, like the real API
+    def __init__(self, reply: str, prompt_tokens: int = 1000, completion_tokens: int = 500):
         self.reply = reply
+        self.usage = SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
         self.calls: list[dict] = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
@@ -57,7 +59,7 @@ class FakeOpenAIClient:
         # Copy the messages: ChatAgent keeps mutating its own list after the call.
         self.calls.append({**kwargs, "messages": [dict(m) for m in kwargs.get("messages", [])]})
         message = SimpleNamespace(content=self.reply)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=self.usage)
 
 
 # Phase 4 – Step 1: factory fixture, e.g. client = fake_client("```json {...} ```")

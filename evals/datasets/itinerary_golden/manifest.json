@@ -1,0 +1,19 @@
+{
+  "name": "itinerary_golden",
+  "version": "1.0.0",
+  "sha256": "f7d53e0c563d2e6b3c12a0d8650af36190c3896de8cc20988bc83e6a51b5514b",
+  "case_count": 8,
+  "approved_count": 8,
+  "smoke_cases": [
+    "G1",
+    "G2",
+    "G5"
+  ],
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-11-13",
+      "changes": "Initial 8 cases (G1-G8), drafted from the mock data and approved by the project owner."
+    }
+  ]
+}
