@@ -72,6 +72,23 @@ def test_smoke_run_writes_records_and_report(run, llm_reply):
     assert result.summary["overall"]["pass_rates"]["parse"] == 1.0
 
 
+# Phase 5 – B1 Step 3: the same 06-10..12 plan is grounded for G1 but NOT for G5 (06-10..11 trip)
+def test_report_hallucination_section(run, llm_reply):
+    result = run(llm_reply)
+    h = result.summary["hallucination"]
+
+    assert h["rate"] == 0.5
+    assert h["failing_runs"] == ["G5#0"]
+    g5 = next(r for r in result.records if r.case_id == "G5")
+    assert g5.result("plan_matches_request").passed is False
+    assert result.summary["slices"]["activity_exists"] == "B1"
+
+    report = (result.out_dir / "report.md").read_text(encoding="utf-8")
+    assert "**Hallucination rate** (target 0%) | **50%**" in report
+    assert "B1 · plan_matches_request pass rate | 50%" in report
+    assert "Failing runs:** G5#0" in report
+
+
 # Phase 5 – B0 Step 4: an unparseable reply is graded as a parse failure (and still cached)
 def test_bad_reply_fails_parse_grader(run):
     result = run("sorry, no JSON")
