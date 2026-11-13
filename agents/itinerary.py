@@ -130,11 +130,17 @@ class ItineraryAgent(ChatAgent):
         print_in_box(response, "Raw Response")
 
         # The messages list holds exactly what was sent (system prompt after dedent/strip).
+        # Phase 5 – B0 Step 3: an InstrumentedClient (llm.py) also provides latency/tokens/cost.
+        metrics = getattr(self.client, "last_call", None)
         self.last_trace = PromptTrace(
             model=getattr(model, "value", str(model)),
             system_prompt=self.messages[0]["content"],
             user_prompt=self.messages[1]["content"],
             raw_response=response,
+            latency_ms=getattr(metrics, "latency_ms", None),
+            prompt_tokens=getattr(metrics, "prompt_tokens", None),
+            completion_tokens=getattr(metrics, "completion_tokens", None),
+            cost_usd=getattr(metrics, "cost_usd", None),
         )
 
         # Phase 3 – Step 4: wrap the validation error so callers keep the raw reply
