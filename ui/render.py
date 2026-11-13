@@ -149,3 +149,29 @@ def render_prompt_trace(trace: PromptTrace, vacation_info: VacationInfo) -> None
             mime="application/json",
             key="download_trace",
         )
+
+
+# Phase 5 – B5 Step 3: user feedback (👍/👎 + optional comment), joined to the run by trace_id.
+# Uses a horizontal st.radio rather than st.feedback: Streamlit 1.45's AppTest can't drive st.feedback.
+FEEDBACK_OPTIONS = {"👍 Helpful": "up", "👎 Not helpful": "down"}
+
+
+def render_feedback(trace: PromptTrace, on_submit) -> None:
+    sent = st.session_state.setdefault("feedback_sent", {})
+    tid = trace.trace_id
+    st.subheader("Was this itinerary helpful?")
+    slot = st.empty()  # the form lives here; on submit it's replaced by the thank-you (no st.rerun needed)
+    if tid in sent:
+        slot.success(f"Thanks – feedback recorded ({sent[tid]}).")
+        return
+    with slot.container():
+        choice = st.radio("Rating", list(FEEDBACK_OPTIONS), index=None, horizontal=True, key=f"fb_rating_{tid}",
+                          label_visibility="collapsed")
+        comment = st.text_area("Comment (optional)", max_chars=500, key=f"fb_comment_{tid}",
+                               placeholder="What was good or wrong about this plan?")
+        clicked = st.button("Send feedback", key=f"fb_send_{tid}", disabled=choice is None)
+    if clicked:
+        rating = FEEDBACK_OPTIONS[choice]
+        on_submit(tid, rating, comment, trace.prompt_version)
+        sent[tid] = rating
+        slot.success(f"Thanks – feedback recorded ({rating}).")
