@@ -3,7 +3,8 @@
 
 import streamlit as st
 
-from models import ActivityRecommendation, ItineraryDay, PromptTrace, TravelPlan
+from models import ActivityRecommendation, ItineraryDay, PromptTrace, TravelPlan, VacationInfo
+from quality.graders import HALLUCINATION_GRADERS, GradingInput, run_graders
 
 INSPECTOR_HEIGHT = 400  # px; long prompts scroll inside the box
 
@@ -82,11 +83,35 @@ def _code_tab(text: str, language: str) -> None:
         st.code(text, language=language, wrap_lines=True)
 
 
+VERDICT_ICONS = {True: "✅", False: "❌", None: "➖"}
+
+
+# Phase 5 – B1 Step 5: online grading – run the deterministic graders on this live itinerary
+def render_quality_checks(trace: PromptTrace, vacation_info: VacationInfo) -> None:
+    results = run_graders(GradingInput.for_request(vacation_info, trace.travel_plan, trace.raw_response))
+    hard = [r for r in results if r.severity == "hard" and r.passed is not None]
+    hallucinated = [r.grader for r in results if r.grader in HALLUCINATION_GRADERS and r.passed is False]
+    st.markdown(
+        f"**Hard checks passed: {sum(r.passed for r in hard)}/{len(hard)}** · "
+        + ("❌ hallucination detected: " + ", ".join(hallucinated) if hallucinated else "✅ no hallucination detected")
+    )
+    st.caption("The same deterministic graders the offline evals use (Layer B), run here on live output. "
+               "➖ = not applicable · info checks are signals, not verdicts.")
+    for r in results:
+        icon = "ℹ️" if r.severity == "info" else VERDICT_ICONS[r.passed]
+        score = f" · score {r.score:.0%}" if r.score is not None else ""
+        st.markdown(f"{icon} `{r.grader}` — {r.slice} · {r.severity}{score}")
+        show = r.passed is False or (r.severity == "info" and r.details.get("count"))
+        if show:
+            st.json(r.details, expanded=False)
+
+
 # Phase 3 – Step 6: "Prompt inspector" – system prompt, user prompt, raw and final response
-def render_prompt_trace(trace: PromptTrace) -> None:
+# Phase 5 – B1 Step 5: + "Quality checks" tab (online grading); caption shows latency/tokens/cost
+def render_prompt_trace(trace: PromptTrace, vacation_info: VacationInfo) -> None:
     with st.expander("🔍 Prompt inspector", expanded=False):
-        system_tab, user_tab, raw_tab, final_tab = st.tabs(
-            ["System prompt", "User prompt", "Raw response", "Final response"]
+        system_tab, user_tab, raw_tab, final_tab, quality_tab = st.tabs(
+            ["System prompt", "User prompt", "Raw response", "Final response", "Quality checks"]
         )
         with system_tab:
             _code_tab(trace.system_prompt, "markdown")
@@ -99,10 +124,19 @@ def render_prompt_trace(trace: PromptTrace) -> None:
                 st.warning("No valid TravelPlan – see the Raw response tab.")
             else:
                 _code_tab(trace.travel_plan.model_dump_json(indent=2), "json")
+        with quality_tab:
+            render_quality_checks(trace, vacation_info)
 
+        metrics = ""
+        if trace.latency_ms is not None:
+            metrics = f" · {trace.latency_ms / 1000:.1f} s"
+        if trace.prompt_tokens is not None:
+            metrics += f" · tokens {trace.prompt_tokens:,} in / {trace.completion_tokens:,} out"
+        if trace.cost_usd is not None:
+            metrics += f" · ≈ ${trace.cost_usd:.4f}"
         st.caption(
-            f"model: {trace.model} · system prompt {len(trace.system_prompt):,} chars · "
-            f"user prompt {len(trace.user_prompt):,} chars · reply {len(trace.raw_response):,} chars"
+            f"model: {trace.model}{metrics} · system prompt {len(trace.system_prompt):,} chars · "
+            f"reply {len(trace.raw_response):,} chars · trace {trace.trace_id[:8]}"
         )
         st.download_button(
             "Download trace JSON",

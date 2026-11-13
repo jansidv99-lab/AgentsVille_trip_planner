@@ -11,7 +11,7 @@ from agents.itinerary import ItineraryAgent, ItineraryParseError
 from models import PromptTrace
 
 APP_PATH = "app.py"
-INSPECTOR_TABS = ["System prompt", "User prompt", "Raw response", "Final response"]
+INSPECTOR_TABS = ["System prompt", "User prompt", "Raw response", "Final response", "Quality checks"]
 
 
 # Phase 4 – Step 4: a fresh app per test; clear Streamlit's process-wide resource cache first
@@ -75,6 +75,31 @@ def test_generate_shows_itinerary_and_inspector(app, sample_plan, llm_reply):
     metrics = {m.label: m.value for m in app.metric}
     assert metrics["Total cost"] == "108 / 130"
     assert [t.label for t in app.tabs] == INSPECTOR_TABS
+
+    # Phase 5 – B1 Step 5: the Quality checks tab grades the grounded sample plan as clean
+    quality = " ".join(m.value for m in app.markdown)
+    assert "Hard checks passed: 6/6" in quality and "no hallucination detected" in quality
+    assert "`activity_exists`" in quality
+
+
+# Phase 5 – B1 Step 5: an ungrounded itinerary (wrong price) is flagged live in the Quality checks tab
+def test_quality_checks_flag_hallucination(app, sample_plan, llm_reply):
+    bad_plan = sample_plan.model_copy(deep=True)
+    bad_plan.itinerary_days[0].activity_recommendations[0].activity.price = 5
+
+    def fake_get_itinerary(self, vacation_info, model=None):
+        self.last_trace = make_trace(vacation_info, model, llm_reply, bad_plan)
+        return bad_plan
+
+    fill_first_traveler(app)
+    with patch.object(ItineraryAgent, "get_itinerary", autospec=True, side_effect=fake_get_itinerary):
+        click_generate(app)
+
+    assert not app.exception
+    quality = " ".join(m.value for m in app.markdown)
+    assert "Hard checks passed: 5/6" in quality
+    assert "hallucination detected: activity_details_match" in quality
+    assert any("event-2025-06-10-0" in str(j.value) for j in app.json)
 
 
 # Phase 4 – Step 4: unparseable LLM reply – error + inspector for debugging, but no itinerary
