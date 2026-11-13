@@ -82,6 +82,7 @@ def test_generate_shows_itinerary_and_inspector(app, sample_plan, llm_reply):
     assert "Hard checks passed: 11/11" in quality and "task success" in quality
     assert "no hallucination detected" in quality and "all constraints met" in quality
     assert "`activity_exists`" in quality and "`weather_safety`" in quality
+    assert "`interest_coverage`" in quality and "`reason_grounding`" in quality  # Phase 5 – B3: deterministic B3 graders shown live
 
 
 # Phase 5 – B2 Step 6: an outdoor hike on the thunderstorm day (the G2/G7 failure) is flagged live

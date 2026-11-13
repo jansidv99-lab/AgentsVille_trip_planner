@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Optional
 
 from quality.graders import task_succeeded
+
+# Phase 5 – B3 Step 6: judge metrics are report-only until human labels exist (calibration trust rule)
+HUMAN_LABELS_PATH = Path(__file__).resolve().parent.parent / "calibration" / "b3_human_labels.v1.jsonl"
 from quality.graders.grounding import HALLUCINATION_GRADERS
 from quality.schema import EvalRecord
 
@@ -255,7 +258,10 @@ def render_markdown(summary: dict) -> str:
         *([
             f"**LLM judge** ({judge_meta.get('model')}, {judge_meta.get('live_calls')} live / "
             f"{judge_meta.get('cached_calls')} cached calls, ≈ ${judge_meta.get('cost_usd')}) – "
-            "_trust only metrics that pass calibration (≥ 80% agreement with human labels)_",
+            + ("_Calibration: human labels present – see the agreement report; trust only metrics with ≥ 80% agreement._"
+             if HUMAN_LABELS_PATH.exists() else
+             "_⚠️ Calibration PENDING (no human labels yet): these judge metrics are **report-only** and must not "
+             "gate anything._"),
             "",
             "| Judge metric | Value |",
             "|---|---|",
