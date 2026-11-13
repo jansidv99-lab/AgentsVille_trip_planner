@@ -91,4 +91,13 @@ def test_v1_does_not_contain_the_v2_rules():
 def test_v2_renders_and_differs_from_v1(vacation_info):
     v1, v2 = build_system_prompt(vacation_info, "v1"), build_system_prompt(vacation_info, "v2")
     assert v1 != v2 and "event-2025-06-10-0" in v2  # same context data, different instructions
-    assert available_prompt_versions() == ["v1", "v2"]
+    assert available_prompt_versions()[:2] == ["v1", "v2"]
+
+
+# Phase 5 – B4 Step 3b: v3 = v2 + the fix for v2's G5 regression (empty plan when no interest matched)
+def test_v3_keeps_v2_rules_and_forbids_empty_days():
+    v3 = load_prompt_template("v3").template
+    assert all(phrase in v3 for phrase in V2_RULES.values()), "v3 must keep every v2 rule"
+    assert "NEVER a reason to leave a day empty" in v3
+    assert "at least one activity on EVERY day" in v3
+    assert "AFTER you finalize the activity list, recompute total_cost" in v3  # v3 smoke: G1 stated 130, spent 148
