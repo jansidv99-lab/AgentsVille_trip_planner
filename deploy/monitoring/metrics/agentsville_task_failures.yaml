@@ -1,0 +1,14 @@
+name: agentsville_task_failures
+description: '[Phase 7 – C2] Runs that failed task success (parse + grounding + hard
+  constraints)'
+filter: resource.type="cloud_run_revision" AND resource.labels.service_name="agentsville-trip-planner"
+  AND jsonPayload.app="agentsville" AND jsonPayload.event="llm_run" AND jsonPayload.task_success=false
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: '1'
+  labels:
+  - key: prompt_version
+    valueType: STRING
+labelExtractors:
+  prompt_version: EXTRACT(jsonPayload.prompt_version)

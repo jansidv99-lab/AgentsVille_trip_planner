@@ -1,0 +1,36 @@
+displayName: AgentsVille A2 – Task success drift
+severity: WARNING
+combiner: OR
+conditions:
+- displayName: AgentsVille A2 – Task success drift – condition
+  conditionPrometheusQueryLanguage:
+    query: (sum(increase(logging_googleapis_com:user_agentsville_task_failures{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[6h])) / sum(increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[6h])))
+      > 0.6 and sum(increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[6h])) >= 5
+    duration: 0s
+    evaluationInterval: 60s
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  content: '## AgentsVille A2 – Task success drift
+
+
+    **What it means:** Over 60% of live runs failed task success in 6 h (at least 5 runs). The v1 baseline is ≈ 42% failures (B4 full run: 58% task success).
+
+
+    **First steps:**
+
+    1. Open the dashboard: which grader dominates (weather, cost, coverage)?
+
+    2. Check whether `PROMPT_VERSION` or the model changed, or the provider updated the model.
+
+    3. Re-run the golden smoke eval (`python -m evals.harness.gate`) to separate model drift from input drift.
+
+
+    Dashboard: *AgentsVille – AI quality & ops* · BigQuery: `agentsville_observability.runs_with_feedback` / `daily_quality`
+
+
+    _Defined in `deploy/monitoring/alerts/a2-task-success-drift.yaml` (Phase 7 – C3)._'
+  mimeType: text/markdown
+userLabels:
+  app: agentsville
+  layer: c3

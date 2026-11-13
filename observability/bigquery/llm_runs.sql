@@ -19,3 +19,5 @@ SELECT
   resource.labels.revision_name AS revision
 FROM `${PROJECT}.${DATASET}.run_googleapis_com_stdout`
 WHERE jsonPayload.app = 'agentsville' AND jsonPayload.event = 'llm_run'
+  -- Phase 7 – C3: synthetic alert-test events (trace_id 'synthetic-…') never reach analytics or golden data
+  AND NOT STARTS_WITH(IFNULL(jsonPayload.trace_id, ''), 'synthetic-')

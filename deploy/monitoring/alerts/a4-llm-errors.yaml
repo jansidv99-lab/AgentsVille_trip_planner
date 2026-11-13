@@ -1,0 +1,33 @@
+displayName: AgentsVille A4 – LLM errors
+severity: CRITICAL
+combiner: OR
+conditions:
+- displayName: AgentsVille A4 – LLM errors – condition
+  conditionPrometheusQueryLanguage:
+    query: sum(increase(logging_googleapis_com:user_agentsville_llm_errors{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[10m])) >= 3
+    duration: 0s
+    evaluationInterval: 60s
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  content: '## AgentsVille A4 – LLM errors
+
+
+    **What it means:** Three or more LLM calls failed without any reply in 10 min (auth, quota, network).
+
+
+    **First steps:**
+
+    1. Check the Cloud Run logs for `llm_error` events (the error text is included).
+
+    2. Verify the `agentsville-openai-api-key` secret and the Vocareum quota/endpoint.
+
+
+    Dashboard: *AgentsVille – AI quality & ops* · BigQuery: `agentsville_observability.runs_with_feedback` / `daily_quality`
+
+
+    _Defined in `deploy/monitoring/alerts/a4-llm-errors.yaml` (Phase 7 – C3)._'
+  mimeType: text/markdown
+userLabels:
+  app: agentsville
+  layer: c3

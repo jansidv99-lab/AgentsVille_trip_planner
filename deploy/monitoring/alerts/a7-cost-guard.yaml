@@ -1,0 +1,33 @@
+displayName: AgentsVille A7 – Cost / abuse guard (> 60 runs/h)
+severity: WARNING
+combiner: OR
+conditions:
+- displayName: AgentsVille A7 – Cost / abuse guard (> 60 runs/h) – condition
+  conditionPrometheusQueryLanguage:
+    query: sum(increase(logging_googleapis_com:user_agentsville_llm_runs{monitored_resource="cloud_run_revision",service_name="agentsville-trip-planner"}[1h])) > 60
+    duration: 0s
+    evaluationInterval: 60s
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  content: '## AgentsVille A7 – Cost / abuse guard (> 60 runs/h)
+
+
+    **What it means:** Unusually high volume for a public demo app: more than 60 generated itineraries in an hour. Every run costs LLM credits.
+
+
+    **First steps:**
+
+    1. Check the request sources in the Cloud Run logs.
+
+    2. If it''s abuse: lower `--max-instances` or temporarily remove `--allow-unauthenticated`.
+
+
+    Dashboard: *AgentsVille – AI quality & ops* · BigQuery: `agentsville_observability.runs_with_feedback` / `daily_quality`
+
+
+    _Defined in `deploy/monitoring/alerts/a7-cost-guard.yaml` (Phase 7 – C3)._'
+  mimeType: text/markdown
+userLabels:
+  app: agentsville
+  layer: c3

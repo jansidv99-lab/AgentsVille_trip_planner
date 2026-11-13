@@ -1,0 +1,20 @@
+name: agentsville_llm_runs
+description: '[Phase 7 – C2] Generated itineraries (one llm_run event each); denominator
+  for quality rates'
+filter: resource.type="cloud_run_revision" AND resource.labels.service_name="agentsville-trip-planner"
+  AND jsonPayload.app="agentsville" AND jsonPayload.event="llm_run"
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: '1'
+  labels:
+  - key: prompt_version
+    valueType: STRING
+  - key: model
+    valueType: STRING
+  - key: task_success
+    valueType: STRING
+labelExtractors:
+  prompt_version: EXTRACT(jsonPayload.prompt_version)
+  model: EXTRACT(jsonPayload.model)
+  task_success: EXTRACT(jsonPayload.task_success)
