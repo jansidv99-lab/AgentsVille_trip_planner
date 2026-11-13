@@ -7,6 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
+from evals.harness.baseline import consistency
 from quality.graders import task_succeeded
 
 # Phase 5 – B3 Step 6: judge metrics are report-only until human labels exist (calibration trust rule)
@@ -165,6 +166,7 @@ def build_summary(records: list[EvalRecord], meta: dict) -> dict:
             "hallucination": hallucination_summary(records),
             "constraints": constraint_summary(records),
             "relevancy": relevancy_summary(records),
+            "consistency": consistency(records),  # Phase 5 – B4 Step 2
             "cases": {cid: stats(rs) for cid, rs in sorted(by_case.items())}}
 
 
@@ -180,6 +182,7 @@ def render_markdown(summary: dict) -> str:
     slices, h = summary.get("slices", {}), summary.get("hallucination") or {}
     c = summary.get("constraints") or {}
     rv = summary.get("relevancy") or {}
+    cs = summary.get("consistency") or {}
     jm = rv.get("judge") or {}
     judge_meta = m.get("judge") or {}
 
@@ -245,6 +248,12 @@ def render_markdown(summary: dict) -> str:
         *[f"| {cid} | {s['activities_per_day']} | {s['budget_utilization']:.0%} |"
           for cid, s in (c.get("plan_shape") or {}).items()],
         "",
+        "## Consistency (B4)",
+        "",
+        f"- **pass^{cs.get('k')}** (every repeat succeeded – *reliably works*): {_fmt(cs.get('pass_k_rate'), pct=True)} of cases",
+        f"- **pass@{cs.get('k')}** (at least one repeat succeeded – *can work*): {_fmt(cs.get('pass_at_k_rate'), pct=True)} of cases",
+        f"- **Flaky cases** (sometimes pass, sometimes fail): {', '.join(cs.get('flaky_cases') or []) or 'none'}",
+        "",
         "## Relevancy & reasoning (B3)",
         "",
         f"- **Interest coverage** (mean, vs coverable interests): {_fmt(rv.get('interest_coverage_mean'), pct=True)}",
@@ -282,3 +291,24 @@ def write_report(out_dir: Path, records: list[EvalRecord], meta: dict) -> dict:
     (out_dir / "report.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
     (out_dir / "report.md").write_text(render_markdown(summary), encoding="utf-8")
     return summary
+
+
+# Phase 5 – B4 Step 2: Markdown section comparing a run with its accepted baseline
+def render_comparison(comparison: dict, baseline_label: str) -> str:
+    lines = [
+        "",
+        f"## Comparison vs baseline (`{baseline_label}`)",
+        "",
+        f"**Verdict: {'✅ no regression' if comparison['passed'] else '❌ REGRESSION'}**",
+        f"- Regressions: {', '.join(comparison['regressions']) or 'none'}",
+        f"- New per-case hard failures: "
+        + (", ".join(f"{cid} ({', '.join(g)})" for cid, g in comparison["new_case_failures"].items()) or "none"),
+        f"- Improvements: {', '.join(comparison['improvements']) or 'none'}",
+        "",
+        "| Metric | Baseline | Current | Δ |",
+        "|---|---|---|---|",
+    ]
+    for name, d in comparison["deltas"].items():
+        lines.append(f"| {name} | {_fmt(d['baseline'], pct=True)} | {_fmt(d['current'], pct=True)} | "
+                     f"{d['delta']:+.0%} |")
+    return "\n".join(lines) + "\n"

@@ -25,15 +25,20 @@ def _ratio(ok: int, total: int) -> float:
 
 # Phase 5 – B2 Step 3: total cost within the budget
 @grader("B2")
+# Phase 5 – B4 fix: judge the REAL spend (sum of the chosen activities' prices, group pricing), not the stated
+# total – v3's G1 stated 130 but actually spent 148, and the stated total hid the overspend.
 def grade_budget_within_limit(inp: GradingInput) -> GraderResult:
     name = "budget_within_limit"
     if inp.plan is None:
         return not_applicable(name, "hard", "no plan")
-    total, limit = inp.plan.total_cost, inp.expectations.max_cost
-    ok = total <= limit
+    spend = sum(a.price for _, a in plan_activities(inp))
+    limit = inp.expectations.max_cost
+    ok = spend <= limit
+    details = {"real_spend": spend, "stated_total": inp.plan.total_cost, "max_cost": limit}
+    if not ok:
+        details["over_by"] = spend - limit
     return GraderResult(grader=name, severity="hard", passed=ok,
-                        score=1.0 if ok else round(min(1.0, limit / total), 3),
-                        details={"total_cost": total, "max_cost": limit, **({} if ok else {"over_by": total - limit})})
+                        score=1.0 if ok else round(min(1.0, limit / spend), 3), details=details)
 
 
 # Phase 5 – B2 Step 3: stated total equals the sum of the activity prices (group pricing)

@@ -106,6 +106,7 @@ class TravelPlan(BaseModel):
 class PromptTrace(BaseModel):
     trace_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     model: str
+    prompt_version: Optional[str] = None  # Phase 5 – B4 Step 1: which prompts/itinerary/<version>.md was used
     system_prompt: str
     user_prompt: str
     raw_response: str

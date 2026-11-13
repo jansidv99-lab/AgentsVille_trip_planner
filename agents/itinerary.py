@@ -7,6 +7,7 @@ from typing import Optional
 
 from pydantic import ValidationError
 
+from agents.prompts import render_prompt, resolve_prompt_version
 from models import OpenAIModel, PromptTrace, TravelPlan, VacationInfo
 from project_lib import (
     ChatAgent,
@@ -35,52 +36,15 @@ def fetch_context(vacation_info: VacationInfo) -> tuple[list[dict], list[dict]]:
 
 
 # Phase 3 – Step 0: the system prompt, with weather/activities for *this* trip as context
-def build_system_prompt(vacation_info: VacationInfo) -> str:
+# Phase 5 – B4 Step 1: the text now lives in prompts/itinerary/<version>.md (v1 = the original, byte-identical)
+def build_system_prompt(vacation_info: VacationInfo, version: Optional[str] = None) -> str:
     weather, activities = fetch_context(vacation_info)
-    return f"""
-Role: You are an expert travel planner and itinerary specialist with extensive experience creating personalized travel experiences.
-
-Task:
-  Create a comprehensive day-by-day travel itinerary based on the provided vacation information, weather conditions, and available activities. Follow these requirements:
-
-  1. **Weather Considerations**: Avoid scheduling outdoor-only activities during rain or thunderstorms
-  2. **Interest Matching**: Select activities that match the travelers' interests and preferences
-  3. **Budget Compliance**: Ensure the total cost does not exceed the specified budget
-  4. **Activity Requirements**: Include at least one activity per day
-  5. **Realistic Planning**: Consider travel time, activity duration, and logical flow
-  6. **CRITICAL: Use Exact Activity Data**: You MUST use the exact activity IDs, names, times, prices, and details from the provided activity list.
-                 Activity IDs follow the format "event-YYYY-MM-DD-N" (e.g., "event-2025-06-10-0"). NEVER use activity names as IDs.
-                 NEVER create, modify, or abbreviate activity IDs. Copy all activity information exactly as provided.
-
-  Use a step-by-step approach to analyze the requirements and create an optimal itinerary.
-
-Output Format:
-    Respond using two sections (ANALYSIS AND FINAL OUTPUT) in the following format:
-
-    ANALYSIS:
-    1. Weather Analysis: Review weather conditions for each day
-    2. Interest Mapping: Identify activities matching each traveler's interests
-    3. Budget Planning: Calculate costs and ensure budget compliance
-    4. Day-by-Day Planning: Create logical flow for each day
-    5. Validation: Verify all requirements are met
-
-
-FINAL OUTPUT: Strictly respond with a JSON object that adheres to this TravelPlan JSON schema
-(use exactly these field names):
-
-    ```json
-    {json.dumps(TravelPlan.model_json_schema(), indent=2)}
-    ```
-
-Context:
-Weather data:
-{json.dumps(weather, indent=2)}
-
-Activities data:
-{json.dumps(activities, indent=2)}
-
-Vacation information will be provided in the user message.
-"""  # noqa: E501
+    return render_prompt(
+        resolve_prompt_version(version),
+        schema=json.dumps(TravelPlan.model_json_schema(), indent=2),
+        weather=json.dumps(weather, indent=2),
+        activities=json.dumps(activities, indent=2),
+    )
 
 
 # Phase 3 – Step 0: pull the JSON block out of the "ANALYSIS ... FINAL OUTPUT" response
@@ -116,14 +80,17 @@ class ItineraryAgent(ChatAgent):
 
     # Phase 3 – Step 0: generate and validate a TravelPlan for one trip request
     # Phase 3 – Step 5: records self.last_trace before parsing, so it exists even on failure
+    # Phase 5 – B4 Step 1: prompt_version selects the template (default: PROMPT_VERSION env, then v1)
     def get_itinerary(
-        self, vacation_info: VacationInfo, model: Optional[OpenAIModel] = None
+        self, vacation_info: VacationInfo, model: Optional[OpenAIModel] = None,
+        prompt_version: Optional[str] = None,
     ) -> TravelPlan:
         """Generate a travel itinerary for vacation_info.
 
         Raises ItineraryParseError if the LLM's reply doesn't match TravelPlan.
         """
-        self.system_prompt = build_system_prompt(vacation_info)
+        prompt_version = resolve_prompt_version(prompt_version)
+        self.system_prompt = build_system_prompt(vacation_info, prompt_version)
         self.reset()  # start a fresh conversation with the new system prompt
         model = model or self.model
 
@@ -142,6 +109,7 @@ class ItineraryAgent(ChatAgent):
         metrics = getattr(self.client, "last_call", None)
         self.last_trace = PromptTrace(
             model=getattr(model, "value", str(model)),
+            prompt_version=prompt_version,
             system_prompt=self.messages[0]["content"],
             user_prompt=self.messages[1]["content"],
             raw_response=response,

@@ -142,6 +142,9 @@ All three reuse Layer B's `EvalRecord` schema and its deterministic graders.
 
 ## 7. Backlog / to-do
 
+- [ ] **Validate-and-repair guardrail (proposed after B4):** after the model replies, code computes the real
+  total and runs the hard graders. On a violation, one repair turn lists the exact problems to the model, then
+  the result is re-graded. Targets the arithmetic and budget slips that sank v2 and v3. Needs its own plan.
 - [ ] **B3 calibration (human labels):** label the 10 items in `evals/calibration/b3_labeling_sheet.md`
   (reply `n: relevancy honest faithful`, e.g. `1: 4 y y`). Then run the agreement report. Until then, all
   LLM-judge metrics are **report-only** and may not gate anything (trust rule: ≥ 80% agreement).

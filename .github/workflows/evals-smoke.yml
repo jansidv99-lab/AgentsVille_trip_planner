@@ -1,0 +1,59 @@
+# Phase 5 – B4 Step 5: smoke-eval regression gate on PRs that can change LLM behaviour.
+# Runs the 3 smoke cases (≈ 3 calls, ≈ $0.02) with the newest prompt version and compares them with the
+# accepted baseline of the SHIPPED version (repo variable PROMPT_VERSION). A new hard failure is re-run
+# once (confirm run); the PR fails only on a confirmed regression or any hallucination.
+
+name: Evals (smoke gate)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "prompts/**"
+      - "agents/**"
+      - "models.py"
+      - "quality/**"
+      - "evals/harness/**"
+      - "evals/datasets/**"
+      - "evals/baselines/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-gate:
+    name: Smoke eval gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+      PROMPT_VERSION: ${{ vars.PROMPT_VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Run smoke gate (newest prompt vs shipped baseline)
+        run: python -m evals.harness.gate --prompt-version latest
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-eval-report
+          path: evals/results/
+          if-no-files-found: ignore

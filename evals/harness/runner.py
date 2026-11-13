@@ -22,10 +22,12 @@ from typing import Callable, Optional
 
 from pydantic import ValidationError
 
+from agents.prompts import resolve_prompt_version
 from agents.itinerary import ItineraryAgent, ItineraryParseError, build_system_prompt, extract_json
+from evals.harness.baseline import baseline_path, compare, load_baseline, snapshot, write_baseline
 from evals.harness.cache import CacheMiss, CacheMode, ResponseCache, cache_key
 from evals.harness.dataset import DATASETS_DIR, load_dataset
-from evals.harness.report import pass_rate, write_report
+from evals.harness.report import pass_rate, render_comparison, write_report
 from llm import get_client, get_default_model
 from models import OpenAIModel, TravelPlan
 from quality.graders import GradingInput, run_graders
@@ -41,10 +43,15 @@ class RunConfig:
     mode: str = "smoke"                       # "smoke" or "full"
     repeats: Optional[int] = None             # default: 1 for smoke, 3 for full
     model: str = field(default_factory=lambda: get_default_model().value)
-    prompt_version: str = "v1"
+    prompt_version: Optional[str] = None      # Phase 5 – B4 Step 1: default PROMPT_VERSION env, then v1
     cache_mode: CacheMode = CacheMode.RECORD
     dataset: str = "itinerary_golden"
     judge: bool = False                       # Phase 5 – B3 Step 3: also run the (offline) LLM judge
+    # Phase 5 – B4 Step 2: baselines & targeted re-runs
+    compare_to: Optional[str] = None          # prompt version whose baseline to compare against (default: same)
+    accept_baseline: bool = False             # write this run as the new accepted baseline
+    case_ids: Optional[list[str]] = None      # restrict to these cases (used by the smoke gate's confirm run)
+    repeat_start: int = 0                     # first repeat index (a confirm run uses a fresh index → new call)
 
     def __post_init__(self):
         if self.mode not in ("smoke", "full"):
@@ -53,6 +60,7 @@ class RunConfig:
             self.repeats = 1 if self.mode == "smoke" else 3
         self.model = OpenAIModel(self.model).value  # validates the model name
         self.cache_mode = CacheMode(self.cache_mode)
+        self.prompt_version = resolve_prompt_version(self.prompt_version)
 
 
 # Phase 5 – B0 Step 4: what a run produced
@@ -64,6 +72,8 @@ class RunResult:
     live_calls: int
     cached_calls: int
     skipped_drafts: list[str]
+    comparison: Optional[dict] = None         # Phase 5 – B4 Step 2: vs the accepted baseline, if one exists
+    snapshot: Optional[dict] = None
 
 
 def git_sha() -> Optional[str]:
@@ -128,6 +138,8 @@ def run_eval(
     manifest, all_cases = load_dataset(config.dataset, datasets_dir)
     dataset_ref = f"{manifest.name}@{manifest.version}"
     cases, skipped = select_cases(all_cases, config.mode)
+    if config.case_ids:  # Phase 5 – B4 Step 2
+        cases = [c for c in cases if c.case_id in config.case_ids]
     cache = cache or ResponseCache()
     started = datetime.datetime.now(datetime.timezone.utc)
     sha = git_sha()
@@ -144,8 +156,8 @@ def run_eval(
 
     for case in cases:
         # The agent sends the dedented, stripped prompt (ChatAgent.reset); hash exactly that.
-        system_prompt = textwrap.dedent(build_system_prompt(case.vacation_info)).strip()
-        for repeat in range(config.repeats):
+        system_prompt = textwrap.dedent(build_system_prompt(case.vacation_info, config.prompt_version)).strip()
+        for repeat in range(config.repeat_start, config.repeat_start + config.repeats):
             key = cache_key(case.case_id, dataset_ref, config.prompt_version, config.model, repeat, system_prompt)
             entry = None if config.cache_mode == CacheMode.REFRESH else cache.get(key)
 
@@ -159,7 +171,8 @@ def run_eval(
                     agent = ItineraryAgent(client=client, model=OpenAIModel(config.model))
                 try:
                     with redirect_stdout(io.StringIO()):
-                        plan = agent.get_itinerary(case.vacation_info, model=OpenAIModel(config.model))
+                        plan = agent.get_itinerary(case.vacation_info, model=OpenAIModel(config.model),
+                                                   prompt_version=config.prompt_version)
                     trace, error = agent.last_trace, None
                 except ItineraryParseError as err:
                     plan, trace, error = None, err.trace, str(err)
@@ -215,7 +228,19 @@ def run_eval(
                    "cost_usd": round(judge_stats["cost_usd"], 6)} if config.judge else None),
     }
     summary = write_report(out_dir, records, meta)
-    return RunResult(records, out_dir, summary, live, cached, skipped)
+
+    # Phase 5 – B4 Step 2: compare against the accepted baseline; optionally accept this run as the new one
+    snap = snapshot(summary, records)
+    base_path = baseline_path(dataset_ref, config.model, config.compare_to or config.prompt_version, config.mode)
+    baseline = load_baseline(base_path)
+    comparison = compare(snap, baseline) if baseline else None
+    if comparison is not None:
+        (out_dir / "comparison.json").write_text(json.dumps(comparison, indent=2), encoding="utf-8")
+        with (out_dir / "report.md").open("a", encoding="utf-8") as f:
+            f.write(render_comparison(comparison, base_path.name))
+    if config.accept_baseline:
+        write_baseline(snap)
+    return RunResult(records, out_dir, summary, live, cached, skipped, comparison, snap)
 
 
 # Phase 5 – B0 Step 4: command-line entry point
@@ -224,18 +249,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--mode", choices=["smoke", "full"], default="smoke")
     parser.add_argument("--repeats", type=int, default=None)
     parser.add_argument("--model", default=get_default_model().value, choices=[m.value for m in OpenAIModel])
-    parser.add_argument("--prompt-version", default="v1")
+    parser.add_argument("--prompt-version", default=None, help="default: PROMPT_VERSION env, then v1")
     parser.add_argument("--cache", choices=[m.value for m in CacheMode], default=CacheMode.RECORD.value)
     parser.add_argument("--judge", action="store_true", help="also run the offline LLM judge (costs calls; cached)")
+    parser.add_argument("--compare-to", default=None, help="prompt version whose baseline to compare against")
+    parser.add_argument("--accept-baseline", action="store_true", help="save this run as the accepted baseline")
     args = parser.parse_args(argv)
 
     result = run_eval(RunConfig(mode=args.mode, repeats=args.repeats, model=args.model,
-                                prompt_version=args.prompt_version, cache_mode=args.cache, judge=args.judge))
+                                prompt_version=args.prompt_version, cache_mode=args.cache, judge=args.judge,
+                                compare_to=args.compare_to, accept_baseline=args.accept_baseline))
     rate = pass_rate(result.records, "parse")
     print(f"Runs: {len(result.records)} ({result.live_calls} live, {result.cached_calls} cached) | "
           f"parse pass rate: {rate if rate is not None else '-'} | skipped drafts: {result.skipped_drafts or 'none'}")
     print(f"Report: {result.out_dir / 'report.md'}")
     print(json.dumps(result.summary["overall"], indent=2, default=str))
+    if result.comparison is not None:
+        c = result.comparison
+        print(f"vs baseline: {'PASS' if c['passed'] else 'REGRESSION'} | regressions: {c['regressions'] or 'none'} | "
+              f"new case failures: {c['new_case_failures'] or 'none'} | improvements: {c['improvements'] or 'none'}")
     return 0
 
 
