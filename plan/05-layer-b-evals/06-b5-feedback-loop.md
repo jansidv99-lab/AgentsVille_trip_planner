@@ -1,6 +1,6 @@
 # Layer B – B5 Production feedback loop & dataset lifecycle
 
-Status: **Approved**: names kept in logs · raw reply only when a hard grader fails · comment ≤ 500 chars · BigQuery OK · live check by Claude
+Status: **Done**: the live check passed end to end (2026-11-13). See §10.
 
 Parent plan: `00-layer-b-overview.md` · **Prerequisite:** C1 (`plan/07-layer-c-monitoring/01-c1-structured-logging.md`)
 · Builds on: B0–B4
@@ -130,3 +130,24 @@ Branch `feature/layer-b-b5-feedback-loop`, stacked on B4 (PRs #8 → #9 → this
 - `promote.py` drafts candidates from real flagged runs; approved ones are promoted into v1.1.0 with a
   changelog.
 - Layer A is green (event schema, UI, SQL logic, promote with injected rows).
+
+## 10. Live check results (2026-11-13)
+
+Done in Chrome against the deployed app (revision `agentsville-trip-planner-00009-r5g`), **1 LLM call**:
+
+| Stage | Result |
+|---|---|
+| App | renders (also confirms the production image fix); one itinerary for "Pipeline Test" (hiking, 06-10→12, budget 130) |
+| Feedback UI | 👎 + comment "pipeline test …" → "Thanks – feedback recorded (down)" (the form is replaced) |
+| Cloud Logging | `llm_run` (WARNING) + `feedback` (INFO), both with trace `c0c309ea…` |
+| Online grading | **`weather_safety` failed**: live v1 put an outdoor hike on the 06-12 thunderstorm day (the B2/G7 pattern, now seen in production). The raw reply was logged because a hard grader failed |
+| BigQuery | sink table created; 5 views; `runs_with_feedback` joins run + 👎 on `trace_id`; `daily_quality`: 1 run, task success 0%, 👎 share 100%, p95 21.4 s, $0.0048 |
+| promote.py | `mine --days 1` → draft **P1** (synthetic name "Traveler A"), tagged constraints/weather/relevancy, flagged **[PIPELINE TEST – reject]**; `candidates.jsonl` stays gitignored |
+
+**Windows portability fixes found during the check:**
+- `bq` crashes while formatting table timestamps (OSError 22), so the setup script's existence check uses `--format=json`.
+- `subprocess` can't find `bq.cmd` by its bare name, so `promote.py` uses `shutil.which`.
+- cmd.exe truncates newline-containing arguments, so the SQL is sent on one line.
+- `bq` can wait on a prompt, so it runs with `--headless`, no stdin, a 120 s timeout, and a readable error.
+
+**Next:** reject P1 (it's the pipeline test). Real 👎 or failing runs from users will produce the first genuine candidates for dataset v1.1.0.

@@ -57,7 +57,8 @@ bq --project_id "${PROJECT_ID}" update --source "${tmp}" "${PROJECT_ID}:${DATASE
 rm -f "${tmp}"
 
 step "Views (need the sink table, created by the first live event)"
-if bq --project_id "${PROJECT_ID}" show "${PROJECT_ID}:${DATASET}.${TABLE}" >/dev/null 2>&1; then
+# --format=json: the default formatter crashes on Windows (OSError in format_time), which looked like "missing".
+if bq --project_id "${PROJECT_ID}" show --format=json "${PROJECT_ID}:${DATASET}.${TABLE}" >/dev/null 2>&1; then
   for view in llm_runs feedback runs_with_feedback daily_quality input_profile; do  # order matters (dependencies)
     sql="$(sed -e "s/\${PROJECT}/${PROJECT_ID}/g" -e "s/\${DATASET}/${DATASET}/g" "observability/bigquery/${view}.sql")"
     bq --project_id "${PROJECT_ID}" rm -f -t "${PROJECT_ID}:${DATASET}.${view}" >/dev/null 2>&1 || true
