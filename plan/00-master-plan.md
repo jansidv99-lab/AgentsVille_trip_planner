@@ -29,21 +29,22 @@ Each phase below gets its own detailed plan in its folder, reviewed before imple
 | 1 | Setup (env, deps, repo) | ✅ done | — | — |
 | 2 | Part A itinerary agent | ✅ done (prompt tuning driven by Phase 5) | — | 1 |
 | 3 | Streamlit UI + prompt inspector | ✅ done | `plan/03-ui/` | 2 |
-| 4 | **Layer A** – deterministic tests (minimal) | next | `plan/04-layer-a-testing/` | 2, 3 |
+| 4 | **Layer A** – deterministic tests (minimal) | next (plan written) | `plan/04-layer-a-testing/` | 2, 3 |
+| 6 | Deploy: Cloud Run + GitHub Actions CI/CD | after 4 (plan written) | `plan/06-deploy/` | 4 |
 | 5 | **Layer B** – probabilistic evals | | `plan/05-layer-b-evals/` | 4 |
-| 6 | Deploy: Cloud Run + GitHub Actions CI/CD | | `plan/06-deploy/` | 4 |
 | 7 | **Layer C** – metrics & drift (GCP native) | | `plan/07-layer-c-monitoring/` | 5, 6 |
 
+Execution order: **4 → 6 → 5 → 7**. The phase numbers are IDs, not the run order.
+
 **Why this order:**
-- **Layer A before deploy:** CI needs it as the gate that must pass before anything ships.
+- **Layer A before CI/CD:** CI needs Layer A as the gate that must pass before anything ships.
+- **CI/CD before Layer B:** the pipeline only needs Layer A. Deploying early gives Layers B and C a
+  real environment to work against.
 - **Layer B before Layer C:** Layer C reuses Layer B's graders on live traffic, and its pass rates
   become the baseline that drift is measured against.
-- **Deploy before Layer C:** Cloud Logging and Monitoring need the app running on Cloud Run.
 
 ```
-Phase 4 Layer A ──▶ Phase 5 Layer B ──┐
-       │                              ├──▶ Phase 7 Layer C
-       └──────▶ Phase 6 Deploy + CI ──┘
+Phase 4 Layer A ──▶ Phase 6 CI/CD + Deploy ──▶ Phase 5 Layer B ──▶ Phase 7 Layer C
 ```
 
 ## 3. Phase 4 – Layer A: deterministic testing (minimal)
@@ -104,6 +105,8 @@ fixed dataset, not a single pass/fail.
   activity per day and underuses the budget.
 
 ## 5. Phase 6 – Deploy: Cloud Run + GitHub Actions
+
+Detailed plan: `plan/06-deploy/01-ci-cd-plan.md`.
 
 - **Container:**
   - a Dockerfile for the Streamlit app, with images stored in Artifact Registry
