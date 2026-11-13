@@ -18,3 +18,4 @@ Thumbs.db
 # Phase 5 – B0: eval harness outputs (cached LLM replies and run results) stay local
 evals/cache/
 evals/results/
+*.stackdump
