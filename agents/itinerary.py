@@ -7,7 +7,7 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from models import OpenAIModel, TravelPlan, VacationInfo
+from models import OpenAIModel, PromptTrace, TravelPlan, VacationInfo
 from project_lib import (
     ChatAgent,
     call_activities_api_mocked,
@@ -93,17 +93,21 @@ def extract_json(response: str) -> str:
 
 # Phase 3 – Step 4: raised when the LLM's reply can't be parsed into a TravelPlan;
 # carries the raw reply so the UI can show it for debugging
+# Phase 3 – Step 5: carries the full PromptTrace instead of only the raw reply
 class ItineraryParseError(Exception):
-    def __init__(self, message: str, raw_response: str):
+    def __init__(self, message: str, trace: PromptTrace):
         super().__init__(message)
-        self.raw_response = raw_response
+        self.trace = trace
 
 
 # Phase 3 – Step 0: the itinerary agent; the system prompt is rebuilt per trip
 class ItineraryAgent(ChatAgent):
     """An agent that plans itineraries based on vacation information, weather, and activities."""
 
+    last_trace: Optional[PromptTrace] = None  # Phase 3 – Step 5: set on every get_itinerary call
+
     # Phase 3 – Step 0: generate and validate a TravelPlan for one trip request
+    # Phase 3 – Step 5: records self.last_trace before parsing, so it exists even on failure
     def get_itinerary(
         self, vacation_info: VacationInfo, model: Optional[OpenAIModel] = None
     ) -> TravelPlan:
@@ -113,22 +117,33 @@ class ItineraryAgent(ChatAgent):
         """
         self.system_prompt = build_system_prompt(vacation_info)
         self.reset()  # start a fresh conversation with the new system prompt
+        model = model or self.model
 
         response = (
             self.chat(
                 user_message=vacation_info.model_dump_json(indent=2),
                 add_to_messages=False,
-                model=model or self.model,
+                model=model,
             )
             or ""
         ).strip()
         print_in_box(response, "Raw Response")
 
+        # The messages list holds exactly what was sent (system prompt after dedent/strip).
+        self.last_trace = PromptTrace(
+            model=getattr(model, "value", str(model)),
+            system_prompt=self.messages[0]["content"],
+            user_prompt=self.messages[1]["content"],
+            raw_response=response,
+        )
+
         # Phase 3 – Step 4: wrap the validation error so callers keep the raw reply
         try:
-            return TravelPlan.model_validate_json(extract_json(response))
+            travel_plan = TravelPlan.model_validate_json(extract_json(response))
         except ValidationError as err:
             raise ItineraryParseError(
                 f"The model's reply did not match the TravelPlan schema ({err.error_count()} errors).",
-                raw_response=response,
+                trace=self.last_trace,
             ) from err
+        self.last_trace.travel_plan = travel_plan
+        return travel_plan

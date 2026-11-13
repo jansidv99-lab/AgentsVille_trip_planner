@@ -3,7 +3,9 @@
 
 import streamlit as st
 
-from models import ActivityRecommendation, ItineraryDay, TravelPlan
+from models import ActivityRecommendation, ItineraryDay, PromptTrace, TravelPlan
+
+INSPECTOR_HEIGHT = 400  # px; long prompts scroll inside the box
 
 WEATHER_ICONS = {
     "clear": "☀️",
@@ -72,3 +74,40 @@ def render_travel_plan(plan: TravelPlan, budget: int) -> None:
         file_name=f"{plan.city.lower()}_itinerary.json",
         mime="application/json",
     )
+
+
+# Phase 3 – Step 6: one inspector tab: a fixed-height scrollable code block (has a copy button)
+def _code_tab(text: str, language: str) -> None:
+    with st.container(height=INSPECTOR_HEIGHT):
+        st.code(text, language=language, wrap_lines=True)
+
+
+# Phase 3 – Step 6: "Prompt inspector" – system prompt, user prompt, raw and final response
+def render_prompt_trace(trace: PromptTrace) -> None:
+    with st.expander("🔍 Prompt inspector", expanded=False):
+        system_tab, user_tab, raw_tab, final_tab = st.tabs(
+            ["System prompt", "User prompt", "Raw response", "Final response"]
+        )
+        with system_tab:
+            _code_tab(trace.system_prompt, "markdown")
+        with user_tab:
+            _code_tab(trace.user_prompt, "json")
+        with raw_tab:
+            _code_tab(trace.raw_response or "(empty reply)", "markdown")
+        with final_tab:
+            if trace.travel_plan is None:
+                st.warning("No valid TravelPlan – see the Raw response tab.")
+            else:
+                _code_tab(trace.travel_plan.model_dump_json(indent=2), "json")
+
+        st.caption(
+            f"model: {trace.model} · system prompt {len(trace.system_prompt):,} chars · "
+            f"user prompt {len(trace.user_prompt):,} chars · reply {len(trace.raw_response):,} chars"
+        )
+        st.download_button(
+            "Download trace JSON",
+            data=trace.model_dump_json(indent=2),
+            file_name="prompt_trace.json",
+            mime="application/json",
+            key="download_trace",
+        )

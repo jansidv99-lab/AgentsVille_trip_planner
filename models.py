@@ -3,7 +3,7 @@
 
 import datetime
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -94,3 +94,16 @@ class TravelPlan(BaseModel):
     end_date: datetime.date
     total_cost: int
     itinerary_days: List[ItineraryDay]
+
+
+# ---------------------------------------------------------------------------
+# Observability: what was sent to and received from the LLM
+# ---------------------------------------------------------------------------
+
+# Phase 3 – Step 5: one LLM run's inputs and outputs, shown in the prompt inspector
+class PromptTrace(BaseModel):
+    model: str
+    system_prompt: str
+    user_prompt: str
+    raw_response: str
+    travel_plan: Optional[TravelPlan] = None  # None when the reply couldn't be parsed

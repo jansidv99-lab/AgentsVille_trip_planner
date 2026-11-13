@@ -12,9 +12,9 @@ from pydantic import ValidationError
 
 from agents.itinerary import ItineraryAgent, ItineraryParseError
 from llm import get_client, get_default_model
-from models import OpenAIModel, TravelPlan, VacationInfo
+from models import OpenAIModel, PromptTrace, TravelPlan, VacationInfo
 from project_lib import Interest
-from ui.render import render_travel_plan
+from ui.render import render_prompt_trace, render_travel_plan
 
 CITIES = ["AgentsVille"]
 # The mocked weather/activities APIs only have data for these dates.
@@ -111,13 +111,18 @@ def cached_client():
 
 # Phase 3 – Step 4: call the itinerary agent. A new agent per request, because ChatAgent keeps
 # conversation state and the cached client is shared between users.
-def generate_plan(vacation_info: VacationInfo, model: OpenAIModel) -> TravelPlan:
+# Phase 3 – Step 5: also return the agent's PromptTrace for the inspector
+def generate_plan(vacation_info: VacationInfo, model: OpenAIModel) -> tuple[TravelPlan, PromptTrace]:
     agent = ItineraryAgent(client=cached_client(), model=model)
-    return agent.get_itinerary(vacation_info=vacation_info, model=model)
+    plan = agent.get_itinerary(vacation_info=vacation_info, model=model)
+    return plan, agent.last_trace
 
 
-# Phase 3 – Step 4: call the agent with a spinner; on failure show a friendly error and return None
-def run_agent(vacation_info: VacationInfo, model: OpenAIModel) -> TravelPlan | None:
+# Phase 3 – Step 4: call the agent with a spinner; on failure show a friendly error.
+# Phase 3 – Step 6: returns (plan, trace); on a parse error the trace is kept for debugging.
+def run_agent(
+    vacation_info: VacationInfo, model: OpenAIModel
+) -> tuple[TravelPlan | None, PromptTrace | None]:
     try:
         with st.spinner(f"Planning your trip with {model.value}… this can take 20–60 seconds."):
             return generate_plan(vacation_info, model)
@@ -128,10 +133,9 @@ def run_agent(vacation_info: VacationInfo, model: OpenAIModel) -> TravelPlan | N
     except openai.OpenAIError as err:  # network problems, rate limits, server errors
         st.error(f"The LLM request failed: {str(err).rstrip('.')}. Please try again.")
     except ItineraryParseError as err:
-        st.error(f"{err} Try again, or pick a stronger model.")
-        with st.expander("Raw model response"):
-            st.code(err.raw_response or "(empty)")
-    return None
+        st.error(f"{err} Open the prompt inspector below to see why, then try again or pick a stronger model.")
+        return None, err.trace
+    return None, None
 
 
 # Phase 3 – Step 2: page layout and the Generate button
@@ -158,14 +162,15 @@ def main() -> None:
             st.error("Please fix the following:\n\n" + "\n".join(f"- {m}" for m in format_errors(err)))
 
         # Drop any earlier result so a stale plan isn't shown after a failed attempt.
-        for k in ("vacation_info", "travel_plan"):
+        for k in ("vacation_info", "travel_plan", "trace"):
             st.session_state.pop(k, None)
 
         if vacation_info is not None:
-            plan = run_agent(vacation_info, trip["model"])
+            plan, trace = run_agent(vacation_info, trip["model"])
+            if trace is not None:
+                st.session_state.trace = trace
             if plan is not None:
                 st.session_state.vacation_info = vacation_info
-                st.session_state.model = trip["model"]
                 st.session_state.travel_plan = plan
 
     # Phase 3 – Step 3: results are read from session_state, so they survive later re-runs
@@ -173,8 +178,10 @@ def main() -> None:
     if "travel_plan" in st.session_state:
         st.divider()
         render_travel_plan(st.session_state.travel_plan, st.session_state.vacation_info.budget)
-        with st.expander(f"Request sent to the agent (model: {st.session_state.model.value})"):
-            st.json(st.session_state.vacation_info.model_dump(mode="json"))
+
+    # Phase 3 – Step 6: shown after a success, and after a parse error (trace without a plan)
+    if "trace" in st.session_state:
+        render_prompt_trace(st.session_state.trace)
 
 
 if __name__ == "__main__":
