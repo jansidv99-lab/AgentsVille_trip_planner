@@ -7,6 +7,7 @@
 #   python -m evals.harness.runner --mode full --repeats 3          # 8 cases × 3
 
 import argparse
+import hashlib
 import datetime
 import io
 import json
@@ -28,7 +29,8 @@ from evals.harness.report import pass_rate, write_report
 from llm import get_client, get_default_model
 from models import OpenAIModel, TravelPlan
 from quality.graders import GradingInput, run_graders
-from quality.schema import EvalCase, EvalRecord
+from quality.graders.judge import JudgeScore, call_judge, judge_model, judge_prompt_sha, judge_results
+from quality.schema import EvalCase, EvalRecord, GraderResult
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
@@ -42,6 +44,7 @@ class RunConfig:
     prompt_version: str = "v1"
     cache_mode: CacheMode = CacheMode.RECORD
     dataset: str = "itinerary_golden"
+    judge: bool = False                       # Phase 5 – B3 Step 3: also run the (offline) LLM judge
 
     def __post_init__(self):
         if self.mode not in ("smoke", "full"):
@@ -87,6 +90,33 @@ def select_cases(cases: list[EvalCase], mode: str) -> tuple[list[EvalCase], list
     return approved, skipped
 
 
+# Phase 5 – B3 Step 3: judge one parsed plan, with its own record/replay cache
+# (key = planner reply key + judge model + judge prompt hash, so a rubric change re-judges automatically)
+def judge_plan(case: EvalCase, plan: TravelPlan, raw: str, planner_key: str, cache: ResponseCache,
+               cache_mode: CacheMode, get_judge_client: Callable) -> tuple[list[GraderResult], dict]:
+    model = judge_model()
+    key = hashlib.sha256(f"{planner_key}|{model}|{judge_prompt_sha()}".encode()).hexdigest()[:32]
+    entry = None if cache_mode == CacheMode.REFRESH else cache.get(key)
+    if entry is None and cache_mode == CacheMode.REPLAY_ONLY:
+        raise CacheMiss(f"No cached judge verdict for {case.case_id} ({model}). Run once with --judge.")
+    if entry is None:
+        client = get_judge_client()
+        try:
+            score = call_judge(client, case.vacation_info, plan, raw, model)
+        except Exception as err:  # judge failure: record it as an info result, don't cache it
+            return ([GraderResult(grader="judge_error", slice="B3", severity="info",
+                                  details={"error": f"{type(err).__name__}: {err}"})],
+                    {"live": 1, "cached": 0, "cost_usd": 0.0})
+        m = getattr(client, "last_call", None)
+        entry = {"score": score.model_dump(), "judge_model": model, "cost_usd": getattr(m, "cost_usd", None),
+                 "latency_ms": getattr(m, "latency_ms", None)}
+        cache.put(key, entry)
+        stats = {"live": 1, "cached": 0, "cost_usd": entry["cost_usd"] or 0.0}
+    else:
+        stats = {"live": 0, "cached": 1, "cost_usd": 0.0}
+    return judge_results(JudgeScore.model_validate(entry["score"])), stats
+
+
 # Phase 5 – B0 Step 4: run the experiment
 def run_eval(
     config: RunConfig,
@@ -104,6 +134,13 @@ def run_eval(
     client = None  # created lazily: replay-only runs never need an API key
     records: list[EvalRecord] = []
     live = cached = 0
+    judge_cache = ResponseCache(cache.directory / "judge")  # Phase 5 – B3 Step 3
+    judge_stats = {"live": 0, "cached": 0, "cost_usd": 0.0}
+
+    def get_client_once():
+        nonlocal client
+        client = client or client_factory()
+        return client
 
     for case in cases:
         # The agent sends the dedented, stripped prompt (ChatAgent.reset); hash exactly that.
@@ -146,6 +183,13 @@ def run_eval(
                 plan, error = parse_reply(entry["raw_response"])
                 cached += 1
 
+            results = run_graders(GradingInput.for_case(case, plan, entry["raw_response"]))  # Phase 5 – B1 Step 1
+            if config.judge and plan is not None:  # Phase 5 – B3 Step 3: offline LLM judge
+                verdicts, stats = judge_plan(case, plan, entry["raw_response"], key, judge_cache,
+                                             config.cache_mode, get_client_once)
+                results += verdicts
+                judge_stats = {k: judge_stats[k] + stats[k] for k in judge_stats}
+
             records.append(EvalRecord(
                 trace_id=entry["trace_id"], timestamp=datetime.datetime.now(datetime.timezone.utc),
                 source="offline", case_id=case.case_id, dataset=dataset_ref,
@@ -153,7 +197,7 @@ def run_eval(
                 latency_ms=entry["latency_ms"], prompt_tokens=entry["prompt_tokens"],
                 completion_tokens=entry["completion_tokens"], cost_usd=entry["cost_usd"],
                 parsed=plan is not None, error=error,
-                grader_results=run_graders(GradingInput.for_case(case, plan, entry["raw_response"])),  # Phase 5 – B1 Step 1
+                grader_results=results,
                 cache_key=key, git_sha=sha,
             ))
 
@@ -166,6 +210,9 @@ def run_eval(
         "prompt_version": config.prompt_version, "repeats": config.repeats, "git_sha": sha,
         "started": started.isoformat(timespec="seconds"), "live_calls": live, "cached_calls": cached,
         "skipped_drafts": skipped,
+        # Phase 5 – B3 Step 3: judge accounting (offline LLM judge)
+        "judge": ({"model": judge_model(), "live_calls": judge_stats["live"], "cached_calls": judge_stats["cached"],
+                   "cost_usd": round(judge_stats["cost_usd"], 6)} if config.judge else None),
     }
     summary = write_report(out_dir, records, meta)
     return RunResult(records, out_dir, summary, live, cached, skipped)
@@ -179,10 +226,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--model", default=get_default_model().value, choices=[m.value for m in OpenAIModel])
     parser.add_argument("--prompt-version", default="v1")
     parser.add_argument("--cache", choices=[m.value for m in CacheMode], default=CacheMode.RECORD.value)
+    parser.add_argument("--judge", action="store_true", help="also run the offline LLM judge (costs calls; cached)")
     args = parser.parse_args(argv)
 
     result = run_eval(RunConfig(mode=args.mode, repeats=args.repeats, model=args.model,
-                                prompt_version=args.prompt_version, cache_mode=args.cache))
+                                prompt_version=args.prompt_version, cache_mode=args.cache, judge=args.judge))
     rate = pass_rate(result.records, "parse")
     print(f"Runs: {len(result.records)} ({result.live_calls} live, {result.cached_calls} cached) | "
           f"parse pass rate: {rate if rate is not None else '-'} | skipped drafts: {result.skipped_drafts or 'none'}")
