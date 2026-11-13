@@ -12,6 +12,7 @@
 !ui/
 !quality/
 !prompts/
+!observability/
 
 # Never ship caches, even inside allowed folders.
 **/__pycache__
