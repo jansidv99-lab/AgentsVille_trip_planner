@@ -49,9 +49,21 @@ GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`)
 
 ## Commands
 
-- Install: `pip install -r requirements.txt`
+- Install: `pip install -r requirements.txt` (add tests: `pip install -r requirements-dev.txt`)
 - Run the app: `streamlit run app.py`
 - CLI demo of Part A (makes one LLM call): `python planner.py`
+- Layer A tests (no LLM calls, ~2 s): `pytest`
+  - one file: `pytest tests/test_models.py`
+  - one test: `pytest tests/test_models.py::test_same_day_trip_is_valid`
+  - one parametrized case: `pytest "tests/test_models.py::test_invalid_field_is_rejected[zero-budget]"`
+  - coverage (optional, needs `pytest-cov`): `pytest --cov=. --cov-report=term-missing`
+- Layer B evals (call the LLM, cost money; excluded by default via `pytest.ini`): `pytest -m eval`
+
+## Testing conventions
+
+- Tests never call the LLM: use the `fake_client` fixture (agent tests) or `patch.object(ItineraryAgent, "get_itinerary", autospec=True, ...)` (UI tests). Shared fixtures live in `tests/conftest.py`.
+- The autouse `isolated_env` fixture sets a dummy `OPENAI_API_KEY` and removes `MODEL` / `OPENAI_BASE_URL`, so the local `.env` never affects results.
+- Streamlit UI tests use `streamlit.testing.v1.AppTest`, with widgets addressed by their `key` (e.g. `name_0`, `interests_0`).
 
 ## Code layout
 

@@ -1,6 +1,6 @@
 # Phase 4 – Layer A: Deterministic Testing (minimal)
 
-Status: **Draft – awaiting review**
+Status: **Done** – 26 tests, ~2 s, verified with the network blocked
 
 ## 1. Purpose
 
