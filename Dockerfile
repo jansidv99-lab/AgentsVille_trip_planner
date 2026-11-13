@@ -25,6 +25,7 @@ COPY ui/ ui/
 # (versioned prompt templates since B4) were missing, so the app failed to import in production.
 COPY quality/ quality/
 COPY prompts/ prompts/
+COPY observability/ observability/
 
 # Fail the BUILD if the app can't import or can't load its prompt templates – the health endpoint alone
 # can't catch this (Streamlit only executes app.py when a browser session connects).

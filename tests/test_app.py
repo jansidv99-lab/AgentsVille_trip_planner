@@ -147,3 +147,71 @@ def test_parse_error_shows_error_and_inspector(app):
     assert [t.label for t in app.tabs] == INSPECTOR_TABS
     assert "No valid TravelPlan" in app.warning[0].value
     assert any(code.value == "sorry, no JSON" for code in app.code)
+
+
+# Phase 7 – C1 Step 2 / B5 Step 3: structured events from the live app (captured from stdout)
+def _events(capsys) -> list[dict]:
+    import json
+    out = capsys.readouterr().out
+    return [json.loads(line) for line in out.splitlines() if line.startswith('{"app": "agentsville"')]
+
+
+def test_generation_emits_exactly_one_llm_run_event(app, sample_plan, llm_reply, capsys):
+    def fake_get_itinerary(self, vacation_info, model=None):
+        self.last_trace = make_trace(vacation_info, model, llm_reply, sample_plan)
+        return sample_plan
+
+    fill_first_traveler(app)
+    capsys.readouterr()  # ignore anything printed before Generate
+    with patch.object(ItineraryAgent, "get_itinerary", autospec=True, side_effect=fake_get_itinerary):
+        click_generate(app)
+    events = _events(capsys)
+    assert [e["event"] for e in events] == ["llm_run"]
+    run = events[0]
+    assert run["task_success"] is True and run["request"]["travelers"][0]["name"] == "Yuri"
+    assert run["trace_id"] == app.session_state["trace"].trace_id
+
+    app.number_input(key="age_0").set_value(41).run()  # a Streamlit re-run must NOT log again
+    assert _events(capsys) == []
+
+
+def test_feedback_is_logged_once_with_the_same_trace_id(app, sample_plan, llm_reply, capsys):
+    def fake_get_itinerary(self, vacation_info, model=None):
+        self.last_trace = make_trace(vacation_info, model, llm_reply, sample_plan)
+        return sample_plan
+
+    fill_first_traveler(app)
+    with patch.object(ItineraryAgent, "get_itinerary", autospec=True, side_effect=fake_get_itinerary):
+        click_generate(app)
+    trace_id = app.session_state["trace"].trace_id
+    capsys.readouterr()
+
+    send = next(b for b in app.button if b.label == "Send feedback")
+    assert send.disabled  # nothing selected yet
+    app.radio(key=f"fb_rating_{trace_id}").set_value("👎 Not helpful")
+    app.text_area(key=f"fb_comment_{trace_id}").input("pipeline test: day 2 too empty")
+    app.run()
+    next(b for b in app.button if b.label == "Send feedback").click().run()
+
+    events = _events(capsys)
+    assert [e["event"] for e in events] == ["feedback"]
+    assert events[0]["trace_id"] == trace_id and events[0]["rating"] == "down"
+    assert events[0]["comment"] == "pipeline test: day 2 too empty"
+    assert any("feedback recorded (down)" in s.value for s in app.success)
+    assert not any(b.label == "Send feedback" for b in app.button)  # the form was replaced by the thank-you
+    app.run()  # a later re-run keeps showing the thank-you, never the form again
+    assert not any(b.label == "Send feedback" for b in app.button)  # one feedback per itinerary
+    assert _events(capsys) == []  # and no duplicate feedback event
+
+
+def test_llm_error_emits_llm_error_event(app, capsys):
+    import httpx
+    import openai
+
+    fill_first_traveler(app)
+    capsys.readouterr()
+    err = openai.APIConnectionError(request=httpx.Request("POST", "http://x"))
+    with patch.object(ItineraryAgent, "get_itinerary", autospec=True, side_effect=err):
+        click_generate(app)
+    events = _events(capsys)
+    assert [e["event"] for e in events] == ["llm_error"] and events[0]["severity"] == "ERROR"

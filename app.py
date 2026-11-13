@@ -14,7 +14,9 @@ from agents.itinerary import ItineraryAgent, ItineraryParseError
 from llm import get_client, get_default_model
 from models import OpenAIModel, PromptTrace, TravelPlan, VacationInfo
 from project_lib import Interest
-from ui.render import render_prompt_trace, render_travel_plan
+from observability.events import feedback_event, llm_error_event, llm_run_event
+from quality.graders import GradingInput, run_graders
+from ui.render import render_feedback, render_prompt_trace, render_travel_plan
 
 CITIES = ["AgentsVille"]
 # The mocked weather/activities APIs only have data for these dates.
@@ -128,10 +130,13 @@ def run_agent(
             return generate_plan(vacation_info, model)
     except RuntimeError as err:  # raised by get_client() when OPENAI_API_KEY is missing
         st.error(str(err))
-    except openai.AuthenticationError:
+        llm_error_event(vacation_info, model.value, f"RuntimeError: {err}")  # Phase 7 – C1 Step 2
+    except openai.AuthenticationError as err:
         st.error("The API key was rejected. Check OPENAI_API_KEY and OPENAI_BASE_URL in .env.")
+        llm_error_event(vacation_info, model.value, f"AuthenticationError: {err}")
     except openai.OpenAIError as err:  # network problems, rate limits, server errors
         st.error(f"The LLM request failed: {str(err).rstrip('.')}. Please try again.")
+        llm_error_event(vacation_info, model.value, f"{type(err).__name__}: {err}")
     except ItineraryParseError as err:
         st.error(f"{err} Open the prompt inspector below to see why, then try again or pick a stronger model.")
         return None, err.trace
@@ -167,6 +172,11 @@ def main() -> None:
 
         if vacation_info is not None:
             plan, trace = run_agent(vacation_info, trip["model"])
+            # Phase 7 – C1 Step 2: one structured llm_run event per generation (never on Streamlit re-runs),
+            # graded online with the same deterministic graders the offline evals use.
+            if trace is not None:
+                results = run_graders(GradingInput.for_request(vacation_info, trace.travel_plan, trace.raw_response))
+                llm_run_event(trace, vacation_info, results, error=None if plan is not None else "parse_error")
             if trace is not None:
                 st.session_state.trace = trace
                 st.session_state.request = vacation_info  # Phase 5 – B1 Step 5: graded against the request
@@ -184,6 +194,8 @@ def main() -> None:
     # Phase 5 – B1 Step 5: the inspector also grades the itinerary against the request (Quality checks)
     if "trace" in st.session_state:
         render_prompt_trace(st.session_state.trace, st.session_state.request)
+        # Phase 5 – B5 Step 3: 👍/👎 + comment, logged as a feedback event with the same trace_id
+        render_feedback(st.session_state.trace, on_submit=feedback_event)
 
 
 if __name__ == "__main__":
