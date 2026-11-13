@@ -1,0 +1,5 @@
+# Phase 3 – Step 1: runtime dependencies (pinned to the versions tested locally)
+streamlit==1.45.1
+openai==1.74.0
+pydantic==2.11.7
+python-dotenv==1.1.0

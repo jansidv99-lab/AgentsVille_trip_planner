@@ -69,9 +69,10 @@ the raw `TravelPlan` JSON.
 - **Streamlit's execution model:** the whole script re-runs from top to bottom on every widget
   interaction. Anything that must survive a re-run (the generated plan, the number of travelers)
   goes in `st.session_state`.
-- **`st.form`:** groups the inputs so the script only re-runs when the submit button is pressed,
-  not on every keystroke. The "Add traveler" button has to sit *outside* the form, because forms
-  allow only one submit action.
+- **`st.form` (considered, not used):** a form groups inputs so the script re-runs only on submit.
+  But a form may contain only submit buttons, and each traveler block needs its own Add/Remove
+  buttons. So Step 2 uses plain widgets with stable `key`s plus button `on_click` callbacks. The
+  extra re-runs are cheap because nothing expensive happens until "Generate" is clicked.
 - **`st.cache_resource`:** creates the OpenAI client once and reuses it across re-runs.
 - **Validation at the edge:** build a `VacationInfo` from the form values and catch Pydantic's
   `ValidationError` to show friendly `st.error` messages (e.g. "pick at least one interest").

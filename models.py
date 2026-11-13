@@ -5,7 +5,7 @@ import datetime
 from enum import Enum
 from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from project_lib import Interest
 
@@ -22,24 +22,33 @@ class OpenAIModel(str, Enum):
 # ---------------------------------------------------------------------------
 
 # Phase 3 – Step 0: one traveler and their interests
+# Phase 3 – Step 2: added Field constraints so the UI gets clear validation errors
 class Traveler(BaseModel):
     """A traveler with a name, age, and list of interests."""
-    name: str
-    age: int
-    interests: List[Interest]
+    name: str = Field(min_length=1)
+    age: int = Field(ge=0, le=120)
+    interests: List[Interest] = Field(min_length=1)
 
 
 # Phase 3 – Step 0: the full trip request (travelers, destination, dates, budget)
+# Phase 3 – Step 2: added constraints and a date-order check
 class VacationInfo(BaseModel):
     """Vacation information including travelers, destination, dates, and budget.
 
     budget is in fictional currency units.
     """
-    travelers: List[Traveler]
+    travelers: List[Traveler] = Field(min_length=1)
     destination: str
     date_of_arrival: datetime.date
     date_of_departure: datetime.date
-    budget: int
+    budget: int = Field(gt=0)
+
+    # Phase 3 – Step 2: a check that involves two fields runs after the fields are parsed
+    @model_validator(mode="after")
+    def check_dates(self) -> "VacationInfo":
+        if self.date_of_departure < self.date_of_arrival:
+            raise ValueError("date_of_departure must be on or after date_of_arrival")
+        return self
 
 
 # ---------------------------------------------------------------------------
