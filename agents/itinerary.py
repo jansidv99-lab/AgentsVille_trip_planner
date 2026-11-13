@@ -5,6 +5,8 @@ import datetime
 import json
 from typing import Optional
 
+from pydantic import ValidationError
+
 from models import OpenAIModel, TravelPlan, VacationInfo
 from project_lib import (
     ChatAgent,
@@ -89,6 +91,14 @@ def extract_json(response: str) -> str:
     return text
 
 
+# Phase 3 – Step 4: raised when the LLM's reply can't be parsed into a TravelPlan;
+# carries the raw reply so the UI can show it for debugging
+class ItineraryParseError(Exception):
+    def __init__(self, message: str, raw_response: str):
+        super().__init__(message)
+        self.raw_response = raw_response
+
+
 # Phase 3 – Step 0: the itinerary agent; the system prompt is rebuilt per trip
 class ItineraryAgent(ChatAgent):
     """An agent that plans itineraries based on vacation information, weather, and activities."""
@@ -99,7 +109,7 @@ class ItineraryAgent(ChatAgent):
     ) -> TravelPlan:
         """Generate a travel itinerary for vacation_info.
 
-        Raises pydantic.ValidationError if the LLM's JSON doesn't match TravelPlan.
+        Raises ItineraryParseError if the LLM's reply doesn't match TravelPlan.
         """
         self.system_prompt = build_system_prompt(vacation_info)
         self.reset()  # start a fresh conversation with the new system prompt
@@ -114,4 +124,11 @@ class ItineraryAgent(ChatAgent):
         ).strip()
         print_in_box(response, "Raw Response")
 
-        return TravelPlan.model_validate_json(extract_json(response))
+        # Phase 3 – Step 4: wrap the validation error so callers keep the raw reply
+        try:
+            return TravelPlan.model_validate_json(extract_json(response))
+        except ValidationError as err:
+            raise ItineraryParseError(
+                f"The model's reply did not match the TravelPlan schema ({err.error_count()} errors).",
+                raw_response=response,
+            ) from err

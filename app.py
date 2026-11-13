@@ -1,21 +1,21 @@
 # Phase 3 – Step 2: Streamlit input form for the AgentsVille trip planner.
-# Collects trip details and travelers, validates them into VacationInfo, and (for now)
-# shows the validated request. The itinerary agent is connected in Step 4.
+# Collects trip details and travelers and validates them into VacationInfo.
+# Phase 3 – Step 4: sends the request to the ItineraryAgent and renders the TravelPlan.
 #
 # Run with:  streamlit run app.py
 
 import datetime
-from pathlib import Path
 
+import openai
 import streamlit as st
 from pydantic import ValidationError
 
-from llm import get_default_model
+from agents.itinerary import ItineraryAgent, ItineraryParseError
+from llm import get_client, get_default_model
 from models import OpenAIModel, TravelPlan, VacationInfo
 from project_lib import Interest
 from ui.render import render_travel_plan
 
-SAMPLE_PLAN_PATH = Path(__file__).parent / "sample_plan.json"
 CITIES = ["AgentsVille"]
 # The mocked weather/activities APIs only have data for these dates.
 MOCK_START = datetime.date(2025, 6, 10)
@@ -103,9 +103,35 @@ def format_errors(err: ValidationError) -> list[str]:
     return messages
 
 
-# Phase 3 – Step 3: stand-in result so the results view can be built without LLM calls
-def load_sample_plan() -> TravelPlan:
-    return TravelPlan.model_validate_json(SAMPLE_PLAN_PATH.read_text(encoding="utf-8"))
+# Phase 3 – Step 4: one OpenAI client per server process, reused across re-runs and users
+@st.cache_resource
+def cached_client():
+    return get_client()
+
+
+# Phase 3 – Step 4: call the itinerary agent. A new agent per request, because ChatAgent keeps
+# conversation state and the cached client is shared between users.
+def generate_plan(vacation_info: VacationInfo, model: OpenAIModel) -> TravelPlan:
+    agent = ItineraryAgent(client=cached_client(), model=model)
+    return agent.get_itinerary(vacation_info=vacation_info, model=model)
+
+
+# Phase 3 – Step 4: call the agent with a spinner; on failure show a friendly error and return None
+def run_agent(vacation_info: VacationInfo, model: OpenAIModel) -> TravelPlan | None:
+    try:
+        with st.spinner(f"Planning your trip with {model.value}… this can take 20–60 seconds."):
+            return generate_plan(vacation_info, model)
+    except RuntimeError as err:  # raised by get_client() when OPENAI_API_KEY is missing
+        st.error(str(err))
+    except openai.AuthenticationError:
+        st.error("The API key was rejected. Check OPENAI_API_KEY and OPENAI_BASE_URL in .env.")
+    except openai.OpenAIError as err:  # network problems, rate limits, server errors
+        st.error(f"The LLM request failed: {str(err).rstrip('.')}. Please try again.")
+    except ItineraryParseError as err:
+        st.error(f"{err} Try again, or pick a stronger model.")
+        with st.expander("Raw model response"):
+            st.code(err.raw_response or "(empty)")
+    return None
 
 
 # Phase 3 – Step 2: page layout and the Generate button
@@ -128,14 +154,19 @@ def main() -> None:
                 budget=trip["budget"],
             )
         except ValidationError as err:
-            # Drop any earlier result so a stale plan isn't shown under an invalid form.
-            for k in ("vacation_info", "travel_plan"):
-                st.session_state.pop(k, None)
+            vacation_info = None
             st.error("Please fix the following:\n\n" + "\n".join(f"- {m}" for m in format_errors(err)))
-        else:
-            st.session_state.vacation_info = vacation_info
-            st.session_state.model = trip["model"]
-            st.session_state.travel_plan = load_sample_plan()  # Step 4: replace with the agent call
+
+        # Drop any earlier result so a stale plan isn't shown after a failed attempt.
+        for k in ("vacation_info", "travel_plan"):
+            st.session_state.pop(k, None)
+
+        if vacation_info is not None:
+            plan = run_agent(vacation_info, trip["model"])
+            if plan is not None:
+                st.session_state.vacation_info = vacation_info
+                st.session_state.model = trip["model"]
+                st.session_state.travel_plan = plan
 
     # Phase 3 – Step 3: results are read from session_state, so they survive later re-runs
     # (e.g. clicking Download or expanding a day).

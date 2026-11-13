@@ -1,6 +1,6 @@
 # Phase 3 – UI Design (Streamlit)
 
-Status: **Approved** – Step 0 in progress
+Status: **Done** – Steps 0–4 implemented (app runs end to end against the LLM)
 
 ## 1. Purpose
 
