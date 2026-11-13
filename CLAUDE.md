@@ -21,11 +21,14 @@ It is built in two parts:
 
 1. **Plan first:** before every step, write a detailed plan doc under `plan/` that explains each topic clearly. Keep plans organized by stage:
    ```
-   plan/00-master-plan.md   # overall phases, goals, dependencies
-   plan/01-setup/           # env, dependencies, repo setup
-   plan/02-agents/          # LLM / agent logic
-   plan/03-ui/              # Streamlit app
-   plan/04-deploy/          # Cloud Run deployment
+   plan/00-master-plan.md        # overall phases, goals, dependencies (AI QA platform, Layers A/B/C)
+   plan/01-setup/                # env, dependencies, repo setup
+   plan/02-agents/               # LLM / agent logic
+   plan/03-ui/                   # Streamlit app
+   plan/04-layer-a-testing/      # Layer A – deterministic tests
+   plan/05-layer-b-evals/        # Layer B – probabilistic evals
+   plan/06-deploy/               # Cloud Run + GitHub Actions CI/CD
+   plan/07-layer-c-monitoring/   # Layer C – system metrics & drift (GCP native)
    ```
    Add new stage folders (e.g. `05-testing/`) when ever as needed do not mixup, keeping the numeric prefix.
 2. **Review:** ask the user to review each plan doc before implementing it.
@@ -38,10 +41,25 @@ It is built in two parts:
    # Phase 2 – Step 3: <purpose of this code>
    ```
 8. **Learning-oriented:** this project is a hands-on learning exercise. Go step by step, explain new concepts as they come up, and never build everything in one go.
+9. **Sync before new work:** `git switch main && git pull` (the repo is configured with `pull.ff=only` and `fetch.prune=true`), confirm `git status` says "up to date with 'origin/main'", then create the new branch from `main`. After a PR is merged: `git switch main && git pull && git branch -d <merged-branch>`.
 
 ## Repository status
 
-Git repo on `main`, tracking `origin` on GitHub. There is no application code yet: `plan/` is empty and the master plan (`plan/00-master-plan.md`) hasn't been written. `.gitignore` excludes `.env`, virtualenvs, and Python caches. Add a "Commands" section here (install, run the app, run tests, run a single test) once Phase 1 chooses the tooling.
+GitHub: `jansidv99-lab/AgentsVille_trip_planner` (public; default branch `main`). Part A (itinerary agent) and the Streamlit UI are merged. Next: the AI QA platform phases in `plan/00-master-plan.md` (Layer A tests → Layer B evals → deploy → Layer C monitoring).
+
+## Commands
+
+- Install: `pip install -r requirements.txt`
+- Run the app: `streamlit run app.py`
+- CLI demo of Part A (makes one LLM call): `python planner.py`
+
+## Code layout
+
+- `models.py`: all Pydantic models (`VacationInfo` input, `TravelPlan` output, `PromptTrace`).
+- `llm.py`: OpenAI client and default model from `.env`.
+- `agents/itinerary.py`: Part A prompt (built from the trip's dates using the mocked APIs) and `ItineraryAgent`, which records a `PromptTrace` on every run.
+- `project_lib.py`: course-provided helpers, `Interest` enum, `ChatAgent`, and the mocked weather and activities data (only 2025-06-10 … 2025-06-15 in AgentsVille).
+- `app.py` + `ui/render.py`: Streamlit form, results view, and prompt inspector.
 
 ## Environment
 
