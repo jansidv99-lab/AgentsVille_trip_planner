@@ -2,6 +2,8 @@
 
 Status: **Approved** – Phases 3, 4, 6 done; Layer B (Phase 5) in progress
 
+> **Part B (Phase 9 – the ReAct travel assistant) is being planned:** see [`plan/plan_b/00-master-plan.md`](plan_b/00-master-plan.md). Part A is closed formally in Part B step 01 (`plan/plan_b/01-part-a-closeout/`).
+
 ## 1. Goal
 
 The AgentsVille trip planner (Part A: the itinerary agent and its Streamlit UI) is built. The
